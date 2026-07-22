@@ -44,6 +44,21 @@ const resubmitDto = (): RegisterCaregiverDto =>
     modalities: ['home'],
   }) as unknown as RegisterCaregiverDto;
 
+const invitation = (over: Record<string, unknown> = {}) => ({
+  id: 'inv-1',
+  token: 'tok-1',
+  patientId: 'pat-1',
+  invitedByAccountId: 'acc-emisor',
+  invitedEmail: 'hermana@test.com',
+  roleToGrant: 'viewer',
+  status: 'pending',
+  expiresAt: new Date(Date.now() + 10 * 60_000),
+  confirmedByAccountId: null,
+  confirmedAt: null,
+  createdAt: new Date('2026-07-22T10:00:00Z'),
+  ...over,
+});
+
 function makeManager(overrides: Record<string, unknown> = {}) {
   const deps = {
     tx: { run: jest.fn(async (fn: (em: unknown) => unknown) => fn({})) },
@@ -53,6 +68,10 @@ function makeManager(overrides: Record<string, unknown> = {}) {
       updatePatient: jest.fn().mockResolvedValue(undefined),
       listLinksForPatient: jest.fn().mockResolvedValue([]),
       findAccountsByIds: jest.fn().mockResolvedValue([]),
+      findInvitationByToken: jest.fn().mockResolvedValue(invitation()),
+      listInvitationsForPatient: jest.fn().mockResolvedValue([]),
+      setInvitationStatus: jest.fn().mockResolvedValue(undefined),
+      linkAccountToPatient: jest.fn().mockResolvedValue(undefined),
     },
     caregiverAccess: {
       findByAccountId: jest.fn().mockResolvedValue(rejectedCaregiver()),
@@ -157,6 +176,115 @@ describe('UC-22 · círculo del paciente (GET /patients/:id/links)', () => {
 
     await expect(manager.getPatientCircle('pat-1', 'acc-intruso')).rejects.toThrow(ForbiddenException);
     expect(access['listLinksForPatient']).not.toHaveBeenCalled();
+  });
+});
+
+describe('UC-03 · gestión de invitaciones emitidas (listar y revocar)', () => {
+  it('Dado un vinculado, cuando lista las invitaciones del paciente, entonces las recibe con estado y vencimiento', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    const emitted = [
+      invitation(),
+      invitation({ id: 'inv-2', token: 'tok-2', status: 'revoked' }),
+    ];
+    access['listInvitationsForPatient'].mockResolvedValue(emitted);
+
+    const result = await manager.listInvitations('pat-1', 'acc-1');
+
+    expect(access['listInvitationsForPatient']).toHaveBeenCalledWith('pat-1');
+    expect(result).toEqual(emitted);
+    expect(result[0]).toEqual(
+      expect.objectContaining({ status: 'pending', expiresAt: expect.any(Date) }),
+    );
+  });
+
+  it('Dada una cuenta sin vínculo, cuando lista las invitaciones, entonces 403 y no se consulta el store', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['getLink'].mockResolvedValue(null);
+
+    await expect(manager.listInvitations('pat-1', 'acc-intruso')).rejects.toThrow(ForbiddenException);
+    expect(access['listInvitationsForPatient']).not.toHaveBeenCalled();
+  });
+
+  it('Dado el emisor, cuando revoca una invitación pendiente, entonces queda revoked y auditada', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['getLink'].mockResolvedValue({ patientId: 'pat-1', accountId: 'acc-emisor', role: 'manager' });
+
+    const result = await manager.revokeInvitation('tok-1', 'acc-emisor');
+
+    expect(access['setInvitationStatus']).toHaveBeenCalledWith('inv-1', 'revoked', null, null);
+    expect((deps.audit as { record: jest.Mock }).record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'membership.invitation.revoked',
+        actor: 'acc-emisor',
+        target: { type: 'patient', id: 'pat-1' },
+      }),
+    );
+    expect(result.status).toBe('revoked');
+  });
+
+  it('Dado un consent-holder que no emitió la invitación, cuando la revoca, entonces queda revoked', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['getLink'].mockResolvedValue({ patientId: 'pat-1', accountId: 'acc-titular', role: 'consent-holder' });
+
+    const result = await manager.revokeInvitation('tok-1', 'acc-titular');
+
+    expect(access['setInvitationStatus']).toHaveBeenCalledWith('inv-1', 'revoked', null, null);
+    expect(result.status).toBe('revoked');
+  });
+
+  it('Dado un vinculado que no es el emisor ni consent-holder, cuando intenta revocar, entonces 403 y no se escribe', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['getLink'].mockResolvedValue({ patientId: 'pat-1', accountId: 'acc-otro', role: 'manager' });
+
+    await expect(manager.revokeInvitation('tok-1', 'acc-otro')).rejects.toThrow(ForbiddenException);
+    expect(access['setInvitationStatus']).not.toHaveBeenCalled();
+    expect((deps.audit as { record: jest.Mock }).record).not.toHaveBeenCalled();
+  });
+
+  it('Dada una invitación ya aceptada, cuando se intenta revocar, entonces 400 y no se escribe', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['findInvitationByToken'].mockResolvedValue(invitation({ status: 'accepted' }));
+
+    await expect(manager.revokeInvitation('tok-1', 'acc-emisor')).rejects.toThrow(BadRequestException);
+    expect(access['setInvitationStatus']).not.toHaveBeenCalled();
+  });
+
+  it('Dada una invitación ya revocada, cuando se vuelve a revocar, entonces no cambia nada (idempotencia natural)', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['findInvitationByToken'].mockResolvedValue(invitation({ status: 'revoked' }));
+
+    const result = await manager.revokeInvitation('tok-1', 'acc-emisor');
+
+    expect(result.status).toBe('revoked');
+    expect(access['setInvitationStatus']).not.toHaveBeenCalled();
+  });
+
+  it('Dado un token revocado, cuando el invitado intenta confirmar, entonces 400 y no se crea el vínculo', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['findInvitationByToken'].mockResolvedValue(invitation({ status: 'revoked' }));
+
+    await expect(
+      manager.confirmInvitation('tok-1', 'acc-invitado', 'hermana@test.com'),
+    ).rejects.toThrow(BadRequestException);
+    expect(access['linkAccountToPatient']).not.toHaveBeenCalled();
+  });
+
+  it('Dado un token revocado, cuando se previsualiza la invitación, entonces valid=false', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['findInvitationByToken'].mockResolvedValue(invitation({ status: 'revoked' }));
+
+    const preview = await manager.previewInvitation('tok-1');
+
+    expect(preview.valid).toBe(false);
   });
 });
 

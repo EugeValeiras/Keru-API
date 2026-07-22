@@ -10,6 +10,7 @@ import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import {
   CreateInvitationDto,
+  EmittedInvitationDto,
   InvitationConfirmedDto,
   InvitationResponseDto,
 } from './manager/dto/invitation.dto';
@@ -38,6 +39,34 @@ export class InvitationController {
       dto.role ?? 'viewer',
     );
     return InvitationResponseDto.from(inv);
+  }
+
+  /** UC-03 A4 · Invitaciones emitidas del paciente (requiere estar vinculado). */
+  @Get('patients/:patientId/invitations')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'UC-03 · Listar invitaciones emitidas (estado y vencimiento)' })
+  @ApiOkResponse({ type: EmittedInvitationDto, isArray: true })
+  async list(
+    @Param('patientId') patientId: string,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<EmittedInvitationDto[]> {
+    const invitations = await this.membership.listInvitations(patientId, account.accountId);
+    return invitations.map(EmittedInvitationDto.from);
+  }
+
+  /** UC-03 A5 · Revocar una invitación pendiente (solo emisor o consent-holder). */
+  @Post('invitations/:token/revoke')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'UC-03 · Revocar invitación (la deja inutilizable)' })
+  @ApiOkResponse({ type: EmittedInvitationDto })
+  async revoke(
+    @Param('token') token: string,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<EmittedInvitationDto> {
+    const revoked = await this.membership.revokeInvitation(token, account.accountId);
+    return EmittedInvitationDto.from(revoked);
   }
 
   /** Pantalla de confirmación (deep link). Público: no requiere sesión para previsualizar. */

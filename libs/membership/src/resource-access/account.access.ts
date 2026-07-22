@@ -61,6 +61,11 @@ export class AccountAccess {
     return this.invitations.findOne({ where: { token } });
   }
 
+  /** Invitaciones emitidas de un paciente, más recientes primero (UC-03 A4). */
+  listInvitationsForPatient(patientId: string): Promise<FamilyInvitation[]> {
+    return this.invitations.find({ where: { patientId }, order: { createdAt: 'DESC' } });
+  }
+
   async setInvitationStatus(
     id: string,
     status: InvitationStatus,

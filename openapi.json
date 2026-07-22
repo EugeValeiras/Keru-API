@@ -734,6 +734,79 @@
         "tags": [
           "Invitations"
         ]
+      },
+      "get": {
+        "operationId": "InvitationController_list_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EmittedInvitationDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-03 · Listar invitaciones emitidas (estado y vencimiento)",
+        "tags": [
+          "Invitations"
+        ]
+      }
+    },
+    "/api/v1/invitations/{token}/revoke": {
+      "post": {
+        "operationId": "InvitationController_revoke_v1",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmittedInvitationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-03 · Revocar invitación (la deja inutilizable)",
+        "tags": [
+          "Invitations"
+        ]
       }
     },
     "/api/v1/invitations/{token}": {
@@ -2727,6 +2800,59 @@
           "status",
           "expiresAt",
           "link"
+        ]
+      },
+      "EmittedInvitationDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitedEmail": {
+            "type": "string"
+          },
+          "roleToGrant": {
+            "type": "string",
+            "enum": [
+              "consent-holder",
+              "manager",
+              "viewer"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "revoked"
+            ]
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "invitedByAccountId": {
+            "type": "string",
+            "description": "Cuenta que emitió la invitación (habilitada a revocarla)."
+          }
+        },
+        "required": [
+          "token",
+          "patientId",
+          "invitedEmail",
+          "roleToGrant",
+          "status",
+          "expiresAt",
+          "createdAt",
+          "invitedByAccountId"
         ]
       },
       "InvitationConfirmedDto": {
