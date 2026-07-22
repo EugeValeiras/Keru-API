@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { ClinicalRecord } from '../../resource-access/entities/clinical-record.entity';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Notification } from '../../resource-access/entities/notification.entity';
+import { QuarantinedRecord } from '../../resource-access/entities/quarantined-record.entity';
+import { RecordOutcome } from '../care-record.manager';
 
 export class RecordResponseDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
@@ -9,8 +10,56 @@ export class RecordResponseDto {
   @ApiProperty() measuredAt!: Date;
   @ApiProperty() authorRole!: string;
 
-  static from(r: ClinicalRecord): RecordResponseDto {
-    return { id: r.id, type: r.type, patientId: r.patientId, measuredAt: r.measuredAt, authorRole: r.authorRole };
+  @ApiProperty({
+    enum: ['recorded', 'quarantined'],
+    description:
+      'recorded: entró al historial. quarantined: llegada tardía no autorizada en cuarentena (NFR-30), pendiente de resolución del círculo — nunca se descarta en silencio.',
+  })
+  status!: 'recorded' | 'quarantined';
+
+  static from(outcome: RecordOutcome): RecordResponseDto {
+    if (outcome.outcome === 'recorded') {
+      const r = outcome.record;
+      return { id: r.id, type: r.type, patientId: r.patientId, measuredAt: r.measuredAt, authorRole: r.authorRole, status: 'recorded' };
+    }
+    const q = outcome.quarantined;
+    return { id: q.id, type: q.type, patientId: q.patientId, measuredAt: q.measuredAt, authorRole: q.authorRole, status: 'quarantined' };
+  }
+}
+
+/** UC-12 A3 · Item de cuarentena visible para el círculo (NFR-30). */
+export class QuarantinedRecordDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) patientId!: string;
+  @ApiProperty({ enum: ['vitals', 'medication', 'note'] }) type!: string;
+  @ApiProperty({ description: 'Tiempo de medición original (NFR-36).' }) measuredAt!: Date;
+  @ApiProperty({ description: 'Tiempo de llegada.' }) receivedAt!: Date;
+  @ApiProperty() authorAccountId!: string;
+  @ApiProperty() authorRole!: string;
+  @ApiProperty({ example: 'no-authority-at-measurement' }) reason!: string;
+  @ApiProperty({ enum: ['pending', 'approved', 'discarded'] }) status!: string;
+  @ApiProperty({ type: Object, description: 'Contenido del registro según type.' }) data!: Record<string, unknown>;
+  @ApiPropertyOptional({ nullable: true }) resolvedByAccountId!: string | null;
+  @ApiPropertyOptional({ nullable: true }) resolvedAt!: Date | null;
+  @ApiPropertyOptional({ nullable: true, format: 'uuid', description: 'Si se aprobó: registro promovido al historial.' })
+  approvedRecordId!: string | null;
+
+  static from(q: QuarantinedRecord): QuarantinedRecordDto {
+    return {
+      id: q.id,
+      patientId: q.patientId,
+      type: q.type,
+      measuredAt: q.measuredAt,
+      receivedAt: q.receivedAt,
+      authorAccountId: q.authorAccountId,
+      authorRole: q.authorRole,
+      reason: q.reason,
+      status: q.status,
+      data: q.data,
+      resolvedByAccountId: q.resolvedByAccountId,
+      resolvedAt: q.resolvedAt,
+      approvedRecordId: q.approvedRecordId,
+    };
   }
 }
 
