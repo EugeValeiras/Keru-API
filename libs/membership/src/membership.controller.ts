@@ -1,0 +1,54 @@
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
+import { MembershipManager } from './manager/membership.manager';
+import { RegisterPatientDto } from './manager/dto/register-patient.dto';
+import { PatientResponseDto } from './manager/dto/patient-response.dto';
+
+/**
+ * Puerta de entrada del dominio Membership (constitution §3.2: Client → Manager).
+ * Protegido por JwtAuthGuard (UC-04): el actor sale del token, no de un header.
+ */
+@ApiTags('Membership')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller()
+export class MembershipController {
+  constructor(private readonly membership: MembershipManager) {}
+
+  /** UC-01 · Registrar paciente. */
+  @Post('patients')
+  @ApiOperation({
+    summary: 'UC-01 · Registrar paciente',
+    description:
+      'Crea el perfil del paciente y vincula al creador como consent-holder. Idempotente por operationId (NFR-34).',
+  })
+  @ApiCreatedResponse({ type: PatientResponseDto })
+  async registerPatient(
+    @Body() dto: RegisterPatientDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<PatientResponseDto> {
+    const result = await this.membership.registerPatient(dto, account.accountId);
+    return {
+      id: result.patient.id,
+      fullName: result.patient.fullName,
+      age: result.age,
+      duplicateCandidateId: result.duplicateCandidateId,
+    };
+  }
+
+  /** UC-22 · Listar los perfiles de paciente de la cuenta. */
+  @Get('patients')
+  @ApiOperation({ summary: 'UC-22 · Listar perfiles de paciente de la cuenta' })
+  @ApiOkResponse({ type: PatientResponseDto, isArray: true })
+  async myPatients(@CurrentAccount() account: AuthPrincipal): Promise<PatientResponseDto[]> {
+    const patients = await this.membership.listMyPatients(account.accountId);
+    return patients.map((p) => ({ id: p.patient.id, fullName: p.patient.fullName, age: p.age }));
+  }
+}

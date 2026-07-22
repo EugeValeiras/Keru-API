@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/keru-api/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": false,
+    "tsConfigPath": "apps/keru-api/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/keru-api",
+  "projects": {
+    "keru-api": {
+      "type": "application",
+      "root": "apps/keru-api",
+      "entryFile": "main",
+      "sourceRoot": "apps/keru-api/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/keru-api/tsconfig.app.json"
+      }
+    },
+    "core": {
+      "type": "library",
+      "root": "libs/core",
+      "entryFile": "index",
+      "sourceRoot": "libs/core/src",
+      "compilerOptions": { "tsConfigPath": "libs/core/tsconfig.lib.json" }
+    },
+    "membership": {
+      "type": "library",
+      "root": "libs/membership",
+      "entryFile": "index",
+      "sourceRoot": "libs/membership/src",
+      "compilerOptions": { "tsConfigPath": "libs/membership/tsconfig.lib.json" }
+    },
+    "hiring": {
+      "type": "library",
+      "root": "libs/hiring",
+      "entryFile": "index",
+      "sourceRoot": "libs/hiring/src",
+      "compilerOptions": { "tsConfigPath": "libs/hiring/tsconfig.lib.json" }
+    },
+    "care-record": {
+      "type": "library",
+      "root": "libs/care-record",
+      "entryFile": "index",
+      "sourceRoot": "libs/care-record/src",
+      "compilerOptions": { "tsConfigPath": "libs/care-record/tsconfig.lib.json" }
+    },
+    "care-consult": {
+      "type": "library",
+      "root": "libs/care-consult",
+      "entryFile": "index",
+      "sourceRoot": "libs/care-consult/src",
+      "compilerOptions": { "tsConfigPath": "libs/care-consult/tsconfig.lib.json" }
+    },
+    "reputation": {
+      "type": "library",
+      "root": "libs/reputation",
+      "entryFile": "index",
+      "sourceRoot": "libs/reputation/src",
+      "compilerOptions": { "tsConfigPath": "libs/reputation/tsconfig.lib.json" }
+    }
+  }
+}

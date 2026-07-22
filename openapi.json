@@ -1,0 +1,2830 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/auth/signup": {
+      "post": {
+        "operationId": "AuthController_signup_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "UC-04 · Crear cuenta y obtener token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "AuthController_login_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "UC-04 · Iniciar sesión",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/patients": {
+      "post": {
+        "description": "Crea el perfil del paciente y vincula al creador como consent-holder. Idempotente por operationId (NFR-34).",
+        "operationId": "MembershipController_registerPatient_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPatientDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-01 · Registrar paciente",
+        "tags": [
+          "Membership"
+        ]
+      },
+      "get": {
+        "operationId": "MembershipController_myPatients_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PatientResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-22 · Listar perfiles de paciente de la cuenta",
+        "tags": [
+          "Membership"
+        ]
+      }
+    },
+    "/api/v1/caregivers": {
+      "post": {
+        "description": "Crea el perfil profesional en estado pending. No visible en el marketplace hasta UC-19.",
+        "operationId": "CaregiverController_register_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterCaregiverDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-02 · Registrar cuidador",
+        "tags": [
+          "Caregivers"
+        ]
+      }
+    },
+    "/api/v1/caregivers/me": {
+      "get": {
+        "operationId": "CaregiverController_myProfile_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-02 · Ver mi perfil y estado de aprobación",
+        "tags": [
+          "Caregivers"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/pending": {
+      "get": {
+        "operationId": "AdminCaregiverController_pending_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaregiverResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-19 · Cola de cuidadores pendientes de aprobación",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers": {
+      "get": {
+        "operationId": "AdminCaregiverController_list_v1",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "deactivated"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Busca por nombre o zona",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar cuidadores con filtro por estado (paginado)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}": {
+      "get": {
+        "operationId": "AdminCaregiverController_detail_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-19 · Detalle del cuidador (con documentación para verificar)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/approve": {
+      "post": {
+        "operationId": "AdminCaregiverController_approve_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-19 · Aprobar cuenta (la publica en el marketplace)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/reject": {
+      "post": {
+        "operationId": "AdminCaregiverController_reject_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectCaregiverDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-19 · Rechazar cuenta (con motivo)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/badges": {
+      "put": {
+        "operationId": "AdminCaregiverController_badges_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBadgesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-19 · Actualizar insignias de verificación (niveles independientes)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/deactivate": {
+      "post": {
+        "operationId": "AdminCaregiverController_deactivate_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeactivateCaregiverDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "OQ-8/NFR-31 · Desactivar (ocultar) cuidador; dispara el ripple encolado a Hiring",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/reactivate": {
+      "post": {
+        "operationId": "AdminCaregiverController_reactivate_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "OQ-8 · Reactivar cuidador desactivado (vuelve a visible)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/invitations": {
+      "post": {
+        "operationId": "InvitationController_issue_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-03 · Emitir invitación (30 min, un solo uso)",
+        "tags": [
+          "Invitations"
+        ]
+      }
+    },
+    "/api/v1/invitations/{token}": {
+      "get": {
+        "operationId": "InvitationController_preview_v1",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Datos de la invitación para la pantalla de confirmación"
+          }
+        },
+        "summary": "UC-03 · Previsualizar invitación",
+        "tags": [
+          "Invitations"
+        ]
+      }
+    },
+    "/api/v1/invitations/{token}/confirm": {
+      "post": {
+        "operationId": "InvitationController_confirm_v1",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationConfirmedDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-03 · Confirmar invitación y crear el vínculo",
+        "tags": [
+          "Invitations"
+        ]
+      }
+    },
+    "/api/v1/marketplace/caregivers": {
+      "get": {
+        "operationId": "MarketplaceController_search_v1",
+        "parameters": [
+          {
+            "name": "careType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "elder-care",
+                "post-surgical",
+                "chronic-illness",
+                "disability",
+                "palliative",
+                "pediatric",
+                "rehabilitation",
+                "companionship"
+              ]
+            }
+          },
+          {
+            "name": "modality",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "home",
+                "hospital"
+              ]
+            }
+          },
+          {
+            "name": "zone",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "Palermo",
+              "type": "string"
+            }
+          },
+          {
+            "name": "minRatePerHour",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 1000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxRatePerHour",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 5000,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaregiverCardDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-06 · Buscar cuidadores (solo aprobados, filtros combinables)",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/marketplace/caregivers/{id}": {
+      "get": {
+        "operationId": "MarketplaceController_profile_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverProfileDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-07 · Ver perfil de cuidador",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/favorites": {
+      "get": {
+        "operationId": "MarketplaceController_favorites_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaregiverCardDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-08 · Listar favoritos",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/favorites/{caregiverId}": {
+      "post": {
+        "operationId": "MarketplaceController_addFavorite_v1",
+        "parameters": [
+          {
+            "name": "caregiverId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-08 · Marcar favorito (idempotente)",
+        "tags": [
+          "Marketplace"
+        ]
+      },
+      "delete": {
+        "operationId": "MarketplaceController_removeFavorite_v1",
+        "parameters": [
+          {
+            "name": "caregiverId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-08 · Quitar favorito",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/hiring-requests": {
+      "post": {
+        "operationId": "MarketplaceController_createRequest_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 · Crear solicitud de contratación (una por paciente)",
+        "tags": [
+          "Marketplace"
+        ]
+      },
+      "get": {
+        "operationId": "MarketplaceController_myRequests_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RequestResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 · Mis solicitudes",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/hiring-requests/{id}/complete": {
+      "post": {
+        "operationId": "MarketplaceController_complete_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 · Finalizar / marcar como pagada (cierra el servicio)",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/caregivers": {
+      "get": {
+        "operationId": "MarketplaceController_history_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaregiverHistoryItemDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-16 · Cuidadores del paciente (vigentes e históricos)",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/caregiver/requests": {
+      "get": {
+        "operationId": "CaregiverRequestsController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RequestResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-10 · Solicitudes recibidas",
+        "tags": [
+          "Caregiver requests"
+        ]
+      }
+    },
+    "/api/v1/caregiver/requests/{id}/accept": {
+      "post": {
+        "operationId": "CaregiverRequestsController_accept_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-10 · Aceptar solicitud (crea la asignación, UC-05)",
+        "tags": [
+          "Caregiver requests"
+        ]
+      }
+    },
+    "/api/v1/caregiver/requests/{id}/decline": {
+      "post": {
+        "operationId": "CaregiverRequestsController_decline_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-10 · Rechazar solicitud",
+        "tags": [
+          "Caregiver requests"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/vitals": {
+      "post": {
+        "operationId": "CareRecordController_vitals_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordVitalsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-12 · Registrar signos vitales (alerta si fuera de rango)",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/medications": {
+      "post": {
+        "operationId": "CareRecordController_medication_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordMedicationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-13 · Registrar medicación administrada",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/notes": {
+      "post": {
+        "operationId": "CareRecordController_note_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-20 · Registrar novedad / comentario",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "operationId": "NotificationController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Mis notificaciones",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/unread-count": {
+      "get": {
+        "operationId": "NotificationController_unread_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Contador de no leídas (badge de la campana)",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{id}/read": {
+      "post": {
+        "operationId": "NotificationController_markRead_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Marcar notificación como leída",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/state": {
+      "get": {
+        "operationId": "CareConsultController_state_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado actual del paciente"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-14 · Estado actual (último valor por métrica, con as-of)",
+        "tags": [
+          "Care consult"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/history": {
+      "get": {
+        "operationId": "CareConsultController_history_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historial por tiempo de medición"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-14 · Historial cronológico (vitales, medicación, novedades)",
+        "tags": [
+          "Care consult"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/metrics/{metricKey}/series": {
+      "get": {
+        "operationId": "CareConsultController_series_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "metricKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Puntos {measuredAt, value} ordenados"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-15 · Serie temporal de una métrica (para graficar)",
+        "tags": [
+          "Care consult"
+        ]
+      }
+    },
+    "/api/v1/hiring-requests/{requestId}/review-caregiver": {
+      "post": {
+        "operationId": "ReviewController_reviewCaregiver_v1",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-17 · Calificar al cuidador (servicio finalizado)",
+        "tags": [
+          "Reputation"
+        ]
+      }
+    },
+    "/api/v1/hiring-requests/{requestId}/review-patient": {
+      "post": {
+        "operationId": "ReviewController_reviewPatient_v1",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-21 · Calificar al paciente (servicio finalizado)",
+        "tags": [
+          "Reputation"
+        ]
+      }
+    },
+    "/api/v1/caregivers/{id}/reputation": {
+      "get": {
+        "operationId": "ReviewController_caregiverReputation_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReputationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-07 · Reputación del cuidador (reseñas visibles + promedio)",
+        "tags": [
+          "Reputation"
+        ]
+      }
+    },
+    "/api/v1/patients/{id}/reputation": {
+      "get": {
+        "operationId": "ReviewController_patientReputation_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReputationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-10/21 · Reputación del paciente (visible para el cuidador)",
+        "tags": [
+          "Reputation"
+        ]
+      }
+    },
+    "/api/v1/catalogs": {
+      "get": {
+        "description": "Enumeraciones y catálogo de métricas (con unidad y rangos por defecto) para dropdowns y validación del cliente.",
+        "operationId": "ReferenceController_getCatalogs_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "careTypes": [
+                      "elder-care",
+                      "palliative"
+                    ],
+                    "modalities": [
+                      "home",
+                      "hospital"
+                    ],
+                    "metrics": [
+                      {
+                        "key": "heart-rate",
+                        "label": "Frecuencia cardíaca",
+                        "unit": "bpm"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Catálogos de la plataforma",
+        "tags": [
+          "Reference"
+        ]
+      }
+    },
+    "/api/v1/admin/ops/sweep": {
+      "post": {
+        "operationId": "OpsController_sweep_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Cantidades transicionadas"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "NFR-14 · Ejecutar el barrido de vencidos ahora (asignaciones, solicitudes, reseñas)",
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/v1/admin/audit": {
+      "get": {
+        "operationId": "AuditController_list_v1",
+        "parameters": [
+          {
+            "name": "actor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de entradas de auditoría"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "NFR-33 · Listar el audit log (paginado, filtros por actor/acción)",
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/v1/admin/dashboard": {
+      "get": {
+        "operationId": "DashboardController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Métricas del back-office"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Métricas operativas (cuidadores por estado, contrataciones, asignaciones activas)",
+        "tags": [
+          "Ops"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Keru API",
+    "description": "Backend del MVP de Keru (marketplace de cuidadores). Contrato para clientes (app móvil y web). Ver casos de uso en Keru-Casos-de-Uso-MVP.md y reglas en constitution.md.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "account": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-account-id"
+      },
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "SignupDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "familiar@test.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "S3gura!123",
+            "minLength": 8
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "patient",
+              "family",
+              "caregiver"
+            ],
+            "example": "family"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Juan Díaz"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "role",
+          "displayName"
+        ]
+      },
+      "AuthResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "patient",
+              "family",
+              "caregiver",
+              "admin"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accessToken",
+          "accountId",
+          "email",
+          "role",
+          "displayName"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "familiar@test.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "S3gura!123"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "EmergencyContactDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "María Díaz"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+54 11 5555-5555"
+          },
+          "relationship": {
+            "type": "string",
+            "example": "hija"
+          }
+        },
+        "required": [
+          "name",
+          "phone"
+        ]
+      },
+      "RegisterPatientDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Rosa Díaz"
+          },
+          "birthDate": {
+            "type": "string",
+            "example": "1948-03-10",
+            "description": "Fecha de nacimiento ISO (YYYY-MM-DD). La edad se deriva de acá."
+          },
+          "photoUrl": {
+            "type": "string",
+            "example": "https://cdn.keru.app/p/rosa.jpg"
+          },
+          "mainCondition": {
+            "type": "string",
+            "example": "Hipertensión"
+          },
+          "bloodGroup": {
+            "type": "string",
+            "example": "0+"
+          },
+          "allergies": {
+            "example": [
+              "Penicilina"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "emergencyContact": {
+            "$ref": "#/components/schemas/EmergencyContactDto"
+          }
+        },
+        "required": [
+          "operationId",
+          "fullName",
+          "birthDate",
+          "mainCondition",
+          "allergies",
+          "emergencyContact"
+        ]
+      },
+      "PatientResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Rosa Díaz"
+          },
+          "age": {
+            "type": "number",
+            "example": 78,
+            "description": "Edad derivada de la fecha de nacimiento."
+          },
+          "duplicateCandidateId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Si se detectó un posible duplicado del mismo humano (residuo #21), su id; el cliente puede ofrecer vincular/mergear."
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "age"
+        ]
+      },
+      "CertificationDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "Enfermería"
+          },
+          "institution": {
+            "type": "string",
+            "example": "Universidad de Buenos Aires"
+          },
+          "year": {
+            "type": "number",
+            "example": 2015
+          }
+        },
+        "required": [
+          "type",
+          "institution",
+          "year"
+        ]
+      },
+      "AvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "dayOfWeek": {
+            "type": "number",
+            "example": 1,
+            "description": "0=domingo .. 6=sábado"
+          },
+          "from": {
+            "type": "string",
+            "example": "08:00"
+          },
+          "to": {
+            "type": "string",
+            "example": "16:00"
+          }
+        },
+        "required": [
+          "dayOfWeek",
+          "from",
+          "to"
+        ]
+      },
+      "RatesDto": {
+        "type": "object",
+        "properties": {
+          "ratePerHour": {
+            "type": "number",
+            "example": 3500
+          },
+          "currency": {
+            "type": "string",
+            "example": "ARS",
+            "default": "ARS"
+          },
+          "description": {
+            "type": "string",
+            "example": "Incluye acompañamiento nocturno"
+          }
+        },
+        "required": [
+          "ratePerHour"
+        ]
+      },
+      "RegisterCaregiverDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Laura Gómez"
+          },
+          "specialties": {
+            "type": "array",
+            "example": [
+              "elder-care",
+              "palliative"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "elder-care",
+                "post-surgical",
+                "chronic-illness",
+                "disability",
+                "palliative",
+                "pediatric",
+                "rehabilitation",
+                "companionship"
+              ]
+            }
+          },
+          "certifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CertificationDto"
+            }
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityDto"
+            }
+          },
+          "rates": {
+            "$ref": "#/components/schemas/RatesDto"
+          },
+          "zone": {
+            "type": "string",
+            "example": "Palermo, CABA"
+          },
+          "modalities": {
+            "type": "array",
+            "example": [
+              "home",
+              "hospital"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "home",
+                "hospital"
+              ]
+            }
+          }
+        },
+        "required": [
+          "operationId",
+          "displayName",
+          "specialties",
+          "certifications",
+          "availability",
+          "rates",
+          "zone",
+          "modalities"
+        ]
+      },
+      "CaregiverResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "deactivated"
+            ]
+          },
+          "specialties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "zone": {
+            "type": "string"
+          },
+          "modalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "badges": {
+            "type": "object",
+            "example": {
+              "certifications": true,
+              "identity": false,
+              "background": false
+            }
+          },
+          "rejectionReason": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "status",
+          "specialties",
+          "zone",
+          "modalities",
+          "badges"
+        ]
+      },
+      "CaregiverDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "deactivated"
+            ]
+          },
+          "specialties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "certifications": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "rates": {
+            "type": "object"
+          },
+          "zone": {
+            "type": "string"
+          },
+          "modalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "badges": {
+            "type": "object"
+          },
+          "rejectionReason": {
+            "type": "object"
+          },
+          "reviewedBy": {
+            "type": "object"
+          },
+          "reviewedAt": {
+            "type": "object"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "displayName",
+          "status",
+          "specialties",
+          "certifications",
+          "availability",
+          "rates",
+          "zone",
+          "modalities",
+          "badges",
+          "createdAt"
+        ]
+      },
+      "RejectCaregiverDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "example": "Certificación de RCP ilegible"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "SetBadgesDto": {
+        "type": "object",
+        "properties": {
+          "certifications": {
+            "type": "boolean",
+            "example": true
+          },
+          "identity": {
+            "type": "boolean",
+            "example": true
+          },
+          "background": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+      "DeactivateCaregiverDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "example": "Denuncia de un familiar"
+          }
+        }
+      },
+      "CreateInvitationDto": {
+        "type": "object",
+        "properties": {
+          "invitedEmail": {
+            "type": "string",
+            "example": "hermana@test.com",
+            "description": "Invitado nombrado (se desafía su identidad al confirmar)."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "manager",
+              "viewer"
+            ],
+            "default": "viewer"
+          }
+        },
+        "required": [
+          "invitedEmail"
+        ]
+      },
+      "InvitationResponseDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitedEmail": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "revoked"
+            ]
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Vence a los 30 minutos de emitida (OQ-2)."
+          },
+          "link": {
+            "type": "string",
+            "description": "Deep link para compartir (abre app o web)."
+          }
+        },
+        "required": [
+          "token",
+          "patientId",
+          "invitedEmail",
+          "status",
+          "expiresAt",
+          "link"
+        ]
+      },
+      "InvitationConfirmedDto": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "consent-holder",
+              "manager",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "patientId",
+          "role"
+        ]
+      },
+      "CaregiverCardDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "specialties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "zone": {
+            "type": "string"
+          },
+          "modalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ratePerHour": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "badges": {
+            "type": "object"
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "description": "true si está en los favoritos de la cuenta"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "specialties",
+          "zone",
+          "modalities",
+          "ratePerHour",
+          "currency",
+          "badges"
+        ]
+      },
+      "CaregiverProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "specialties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "zone": {
+            "type": "string"
+          },
+          "modalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ratePerHour": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "badges": {
+            "type": "object"
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "description": "true si está en los favoritos de la cuenta"
+          },
+          "certifications": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "specialties",
+          "zone",
+          "modalities",
+          "ratePerHour",
+          "currency",
+          "badges",
+          "certifications",
+          "availability"
+        ]
+      },
+      "CreateRequestDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caregiverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "home",
+              "hospital"
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2026-08-01T08:00:00Z"
+          },
+          "endDate": {
+            "type": "string",
+            "example": "2026-08-15T18:00:00Z"
+          },
+          "specialRequirements": {
+            "type": "string",
+            "example": "Requiere movilidad reducida"
+          },
+          "contactData": {
+            "type": "object",
+            "example": {
+              "phone": "+54 11 5555-5555"
+            }
+          }
+        },
+        "required": [
+          "operationId",
+          "patientId",
+          "caregiverId",
+          "modality",
+          "startDate",
+          "endDate",
+          "contactData"
+        ]
+      },
+      "RequestResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caregiverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modality": {
+            "type": "string"
+          },
+          "startDate": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endDate": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "in-progress",
+              "finished",
+              "expired"
+            ]
+          },
+          "ratePerHourSnapshot": {
+            "type": "string",
+            "description": "Tarifa pinneada al solicitar (NFR-03/23)"
+          }
+        },
+        "required": [
+          "id",
+          "patientId",
+          "caregiverId",
+          "modality",
+          "startDate",
+          "endDate",
+          "status",
+          "ratePerHourSnapshot"
+        ]
+      },
+      "CaregiverHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caregiverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caregiverName": {
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "historical"
+            ]
+          }
+        },
+        "required": [
+          "assignmentId",
+          "caregiverId",
+          "periodStart",
+          "periodEnd",
+          "status"
+        ]
+      },
+      "MetricValueDto": {
+        "type": "object",
+        "properties": {
+          "metricKey": {
+            "type": "string",
+            "enum": [
+              "blood-pressure-systolic",
+              "blood-pressure-diastolic",
+              "heart-rate",
+              "temperature",
+              "oxygen-saturation",
+              "glucose"
+            ],
+            "example": "blood-pressure-systolic"
+          },
+          "value": {
+            "type": "number",
+            "example": 120
+          }
+        },
+        "required": [
+          "metricKey",
+          "value"
+        ]
+      },
+      "RecordVitalsDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "measuredAt": {
+            "type": "string",
+            "description": "Tiempo de medición ISO. Default: ahora.",
+            "example": "2026-07-21T10:00:00Z"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricValueDto"
+            }
+          }
+        },
+        "required": [
+          "operationId",
+          "values"
+        ]
+      },
+      "RecordResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "vitals",
+              "medication",
+              "note"
+            ]
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "measuredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "authorRole": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "patientId",
+          "measuredAt",
+          "authorRole"
+        ]
+      },
+      "RecordMedicationDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "measuredAt": {
+            "type": "string",
+            "example": "2026-07-21T10:00:00Z"
+          },
+          "medication": {
+            "type": "string",
+            "example": "Enalapril"
+          },
+          "dose": {
+            "type": "string",
+            "example": "10 mg"
+          },
+          "schedule": {
+            "type": "string",
+            "example": "08:00"
+          },
+          "observations": {
+            "type": "string",
+            "example": "Tomada con el desayuno"
+          }
+        },
+        "required": [
+          "operationId",
+          "medication",
+          "dose"
+        ]
+      },
+      "RecordNoteDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "measuredAt": {
+            "type": "string",
+            "example": "2026-07-21T10:00:00Z"
+          },
+          "text": {
+            "type": "string",
+            "example": "Durmió bien, comió poco en el almuerzo"
+          }
+        },
+        "required": [
+          "operationId",
+          "text"
+        ]
+      },
+      "NotificationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "alert",
+              "note"
+            ]
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "patientId",
+          "title",
+          "body",
+          "read",
+          "createdAt"
+        ]
+      },
+      "SubmitReviewDto": {
+        "type": "object",
+        "properties": {
+          "rating": {
+            "type": "number",
+            "example": 5,
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string",
+            "example": "Muy atenta y puntual"
+          }
+        },
+        "required": [
+          "rating"
+        ]
+      },
+      "ReviewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rating": {
+            "type": "number"
+          },
+          "comment": {
+            "type": "object"
+          },
+          "subjectType": {
+            "type": "string",
+            "enum": [
+              "caregiver",
+              "patient"
+            ]
+          },
+          "revealed": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rating",
+          "subjectType",
+          "revealed",
+          "createdAt"
+        ]
+      },
+      "ReputationDto": {
+        "type": "object",
+        "properties": {
+          "aggregate": {
+            "type": "object",
+            "example": {
+              "average": 4.5,
+              "count": 2
+            }
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewDto"
+            }
+          }
+        },
+        "required": [
+          "aggregate",
+          "reviews"
+        ]
+      }
+    }
+  }
+}

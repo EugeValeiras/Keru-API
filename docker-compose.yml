@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: keru-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: keru
+      POSTGRES_PASSWORD: keru
+      POSTGRES_DB: keru
+    ports:
+      - '5432:5432'
+    volumes:
+      - keru_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U keru']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: keru-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - keru_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Servicio de la API. Detrás del profile "app": `docker compose up -d` levanta solo infra;
+  # `docker compose --profile app up -d --build` levanta también la API.
+  api:
+    build: .
+    container_name: keru-api
+    restart: unless-stopped
+    profiles: ['app']
+    ports:
+      - '3000:3000'
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: keru
+      DB_PASSWORD: keru
+      DB_NAME: keru
+      DB_SYNCHRONIZE: 'true'
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: dev-secret-change-me
+      JWT_EXPIRES: 7d
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  keru_pgdata:
+  keru_redisdata:

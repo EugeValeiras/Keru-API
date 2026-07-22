@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@keru/core": ["libs/core/src"],
+      "@keru/core/*": ["libs/core/src/*"],
+      "@keru/membership": ["libs/membership/src"],
+      "@keru/membership/*": ["libs/membership/src/*"],
+      "@keru/hiring": ["libs/hiring/src"],
+      "@keru/hiring/*": ["libs/hiring/src/*"],
+      "@keru/care-record": ["libs/care-record/src"],
+      "@keru/care-record/*": ["libs/care-record/src/*"],
+      "@keru/care-consult": ["libs/care-consult/src"],
+      "@keru/care-consult/*": ["libs/care-consult/src/*"],
+      "@keru/reputation": ["libs/reputation/src"],
+      "@keru/reputation/*": ["libs/reputation/src/*"]
+    }
+  }
+}

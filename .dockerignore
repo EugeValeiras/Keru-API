@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.git
+.github
+*.log
+.env
+.env.*
+.DS_Store
+openapi.json
+addl
+*.md
+!README.md
+Keru-Scope-MVP.docx.pdf
