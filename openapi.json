@@ -638,6 +638,52 @@
         ]
       }
     },
+    "/api/v1/files/images": {
+      "post": {
+        "operationId": "FilesController_upload_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedImageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Subir imagen de perfil (jpeg/png/webp, máx 5MB) → URL pública",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
     "/api/v1/marketplace/caregivers": {
       "get": {
         "operationId": "MarketplaceController_search_v1",
@@ -1090,6 +1136,170 @@
         ]
       }
     },
+    "/api/v1/hiring-requests/{requestId}/review-caregiver": {
+      "post": {
+        "operationId": "ReviewController_reviewCaregiver_v1",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-17 · Calificar al cuidador (servicio finalizado)",
+        "tags": [
+          "Reputation"
+        ]
+      }
+    },
+    "/api/v1/hiring-requests/{requestId}/review-patient": {
+      "post": {
+        "operationId": "ReviewController_reviewPatient_v1",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-21 · Calificar al paciente (servicio finalizado)",
+        "tags": [
+          "Reputation"
+        ]
+      }
+    },
+    "/api/v1/caregivers/{id}/reputation": {
+      "get": {
+        "operationId": "ReviewController_caregiverReputation_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReputationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-07 · Reputación del cuidador (reseñas visibles + promedio)",
+        "tags": [
+          "Reputation"
+        ]
+      }
+    },
+    "/api/v1/patients/{id}/reputation": {
+      "get": {
+        "operationId": "ReviewController_patientReputation_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReputationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-10/21 · Reputación del paciente (visible para el cuidador)",
+        "tags": [
+          "Reputation"
+        ]
+      }
+    },
     "/api/v1/patients/{patientId}/vitals": {
       "post": {
         "operationId": "CareRecordController_vitals_v1",
@@ -1399,170 +1609,6 @@
         "summary": "UC-15 · Serie temporal de una métrica (para graficar)",
         "tags": [
           "Care consult"
-        ]
-      }
-    },
-    "/api/v1/hiring-requests/{requestId}/review-caregiver": {
-      "post": {
-        "operationId": "ReviewController_reviewCaregiver_v1",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubmitReviewDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReviewDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "UC-17 · Calificar al cuidador (servicio finalizado)",
-        "tags": [
-          "Reputation"
-        ]
-      }
-    },
-    "/api/v1/hiring-requests/{requestId}/review-patient": {
-      "post": {
-        "operationId": "ReviewController_reviewPatient_v1",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubmitReviewDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReviewDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "UC-21 · Calificar al paciente (servicio finalizado)",
-        "tags": [
-          "Reputation"
-        ]
-      }
-    },
-    "/api/v1/caregivers/{id}/reputation": {
-      "get": {
-        "operationId": "ReviewController_caregiverReputation_v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReputationDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "UC-07 · Reputación del cuidador (reseñas visibles + promedio)",
-        "tags": [
-          "Reputation"
-        ]
-      }
-    },
-    "/api/v1/patients/{id}/reputation": {
-      "get": {
-        "operationId": "ReviewController_patientReputation_v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReputationDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "UC-10/21 · Reputación del paciente (visible para el cuidador)",
-        "tags": [
-          "Reputation"
         ]
       }
     },
@@ -1983,6 +2029,10 @@
             "type": "string",
             "example": "Laura Gómez"
           },
+          "photoUrl": {
+            "type": "string",
+            "example": "http://localhost:4566/keru-media/images/abc.jpg"
+          },
           "specialties": {
             "type": "array",
             "example": [
@@ -2308,6 +2358,18 @@
           "role"
         ]
       },
+      "UploadedImageDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL pública de la imagen subida (usar como photoUrl)"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
       "CaregiverCardDto": {
         "type": "object",
         "properties": {
@@ -2317,6 +2379,10 @@
           },
           "displayName": {
             "type": "string"
+          },
+          "photoUrl": {
+            "type": "string",
+            "description": "Foto de perfil (UC-06)"
           },
           "specialties": {
             "type": "array",
@@ -2345,6 +2411,14 @@
           "isFavorite": {
             "type": "boolean",
             "description": "true si está en los favoritos de la cuenta"
+          },
+          "ratingAverage": {
+            "type": "number",
+            "description": "Promedio de reseñas reveladas, 0 si no tiene (UC-06 criterio 3)"
+          },
+          "ratingCount": {
+            "type": "number",
+            "description": "Cantidad de reseñas reveladas"
           }
         },
         "required": [
@@ -2368,6 +2442,10 @@
           "displayName": {
             "type": "string"
           },
+          "photoUrl": {
+            "type": "string",
+            "description": "Foto de perfil (UC-06)"
+          },
           "specialties": {
             "type": "array",
             "items": {
@@ -2395,6 +2473,14 @@
           "isFavorite": {
             "type": "boolean",
             "description": "true si está en los favoritos de la cuenta"
+          },
+          "ratingAverage": {
+            "type": "number",
+            "description": "Promedio de reseñas reveladas, 0 si no tiene (UC-06 criterio 3)"
+          },
+          "ratingCount": {
+            "type": "number",
+            "description": "Cantidad de reseñas reveladas"
           },
           "certifications": {
             "type": "array",
@@ -2489,6 +2575,14 @@
             "type": "string",
             "format": "uuid"
           },
+          "patientName": {
+            "type": "string",
+            "description": "Nombre del paciente (visible para el cuidador, UC-10)"
+          },
+          "caregiverName": {
+            "type": "string",
+            "description": "Nombre del cuidador (visible para el solicitante)"
+          },
           "modality": {
             "type": "string"
           },
@@ -2499,6 +2593,13 @@
           "endDate": {
             "format": "date-time",
             "type": "string"
+          },
+          "specialRequirements": {
+            "type": "string"
+          },
+          "contactData": {
+            "type": "object",
+            "description": "Datos de contacto del solicitante. Para el cuidador solo con solicitud aceptada/en curso (UC-10)."
           },
           "status": {
             "type": "string",
@@ -2563,6 +2664,82 @@
           "periodStart",
           "periodEnd",
           "status"
+        ]
+      },
+      "SubmitReviewDto": {
+        "type": "object",
+        "properties": {
+          "rating": {
+            "type": "number",
+            "example": 5,
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string",
+            "example": "Muy atenta y puntual"
+          }
+        },
+        "required": [
+          "rating"
+        ]
+      },
+      "ReviewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rating": {
+            "type": "number"
+          },
+          "comment": {
+            "type": "object"
+          },
+          "subjectType": {
+            "type": "string",
+            "enum": [
+              "caregiver",
+              "patient"
+            ]
+          },
+          "revealed": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rating",
+          "subjectType",
+          "revealed",
+          "createdAt"
+        ]
+      },
+      "ReputationDto": {
+        "type": "object",
+        "properties": {
+          "aggregate": {
+            "type": "object",
+            "example": {
+              "average": 4.5,
+              "count": 2
+            }
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewDto"
+            }
+          }
+        },
+        "required": [
+          "aggregate",
+          "reviews"
         ]
       },
       "MetricValueDto": {
@@ -2747,82 +2924,6 @@
           "body",
           "read",
           "createdAt"
-        ]
-      },
-      "SubmitReviewDto": {
-        "type": "object",
-        "properties": {
-          "rating": {
-            "type": "number",
-            "example": 5,
-            "minimum": 1,
-            "maximum": 5
-          },
-          "comment": {
-            "type": "string",
-            "example": "Muy atenta y puntual"
-          }
-        },
-        "required": [
-          "rating"
-        ]
-      },
-      "ReviewDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "rating": {
-            "type": "number"
-          },
-          "comment": {
-            "type": "object"
-          },
-          "subjectType": {
-            "type": "string",
-            "enum": [
-              "caregiver",
-              "patient"
-            ]
-          },
-          "revealed": {
-            "type": "boolean"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "rating",
-          "subjectType",
-          "revealed",
-          "createdAt"
-        ]
-      },
-      "ReputationDto": {
-        "type": "object",
-        "properties": {
-          "aggregate": {
-            "type": "object",
-            "example": {
-              "average": 4.5,
-              "count": 2
-            }
-          },
-          "reviews": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewDto"
-            }
-          }
-        },
-        "required": [
-          "aggregate",
-          "reviews"
         ]
       }
     }
