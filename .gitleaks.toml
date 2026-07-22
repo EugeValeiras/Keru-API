@@ -1,0 +1,17 @@
+# Secret scanning (KER-25) — guardrail tras el incidente VAPID (GitGuardian 2026-07-22).
+# El CI escanea el diff del PR y el working tree de main, NUNCA el historial completo:
+# los commits previos a la rotación (PR #15) contienen el par VAPID viejo, ya inerte.
+
+[extend]
+useDefault = true
+
+# Allowlist SOLO por contenido del secreto detectado (regexTarget = "secret"): valores
+# obviamente dummy de los .env.example / docs. Ojo: NO usar `paths` acá — gitleaks
+# saltea el archivo entero en el traversal aunque se pida condition = "AND", y eso
+# blanquearía un secreto real pegado en .env.example (el incidente original).
+# Los placeholders vacíos (VAPID_PRIVATE_KEY=) no necesitan allowlist: sin valor no
+# hay match posible.
+[[allowlists]]
+description = "Valores placeholder (change-me, dummy, <completar>) — nunca secretos reales"
+regexTarget = "secret"
+regexes = ['''(?i)(change-?me|changeit|placeholder|dummy|your[-_].+[-_]here|<[^>]+>)''']

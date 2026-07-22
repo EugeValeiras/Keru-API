@@ -7,6 +7,36 @@ on:
     branches: [main]
 
 jobs:
+  # Secret scanning (KER-25): guardrail tras el incidente VAPID (GitGuardian 2026-07-22).
+  # Bloqueante: un secreto en el diff del PR (o en el working tree de main) tumba el CI.
+  # No se escanea el historial completo: los commits previos a la rotación (PR #15)
+  # contienen el par VAPID viejo, ya inerte. Config y allowlist en .gitleaks.toml.
+  secret-scanning:
+    name: gitleaks (secret scanning)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # El scan del PR necesita los commits de base y head para armar el rango
+          fetch-depth: 0
+
+      - name: Instalar gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+
+      - name: Secretos en el diff del PR (bloqueante)
+        if: github.event_name == 'pull_request'
+        run: >
+          gitleaks git . --no-banner --redact=50 --verbose
+          --log-opts="--no-merges ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+      - name: Secretos en el working tree (bloqueante)
+        if: github.event_name != 'pull_request'
+        run: gitleaks dir . --no-banner --redact=50 --verbose
+
   build-lint-test:
     name: build + lint + tests
     runs-on: ubuntu-latest
