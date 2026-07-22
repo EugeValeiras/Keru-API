@@ -10,6 +10,7 @@ import {
   Rates,
   VerificationBadges,
 } from './entities/caregiver.entity';
+import { CaregiverRateVersion } from './entities/caregiver-rate-version.entity';
 
 export interface CreateCaregiverInput {
   accountId: string;
@@ -26,6 +27,15 @@ export interface CreateCaregiverInput {
 /** UC-02 A2 · Datos corregidos de la re-postulación (el perfil ya existe; la cuenta no cambia). */
 export type ResubmitCaregiverInput = Omit<CreateCaregiverInput, 'accountId'>;
 
+/** UC-02 A3 · Campos editables de un perfil aprobado (los que no requieren re-verificación). */
+export interface UpdateApprovedProfileInput {
+  photoUrl?: string | null;
+  availability?: AvailabilitySlot[];
+  rates?: Rates;
+  zone?: string;
+  modalities?: string[];
+}
+
 /**
  * CaregiverAccess (constitution §3.1). Verbos atómicos sobre el perfil de cuidador: personas +
  * cuentas, perfiles, tarifas efectivo-fechadas, insignias + provenance, ciclo de aprobación,
@@ -34,7 +44,11 @@ export type ResubmitCaregiverInput = Omit<CreateCaregiverInput, 'accountId'>;
 @ResourceAccess()
 @Injectable()
 export class CaregiverAccess {
-  constructor(@InjectRepository(Caregiver) private readonly caregivers: Repository<Caregiver>) {}
+  constructor(
+    @InjectRepository(Caregiver) private readonly caregivers: Repository<Caregiver>,
+    @InjectRepository(CaregiverRateVersion)
+    private readonly rateVersions: Repository<CaregiverRateVersion>,
+  ) {}
 
   /** UC-02. Idempotente por operationId; un perfil por cuenta. Las certificaciones nacen no verificadas. */
   async createProfile(input: CreateCaregiverInput, operationId: string): Promise<Caregiver> {
@@ -115,6 +129,42 @@ export class CaregiverAccess {
    * vuelven a "no verificada". Transición con precondición (rejected -> pending, la valida el
    * Manager): naturalmente idempotente, no requiere operationId (NFR-34, aclaración).
    */
+  /**
+   * UC-02 A3 · Set parcial de los campos editables del perfil aprobado (la precondición de estado
+   * la valida el Manager). Set de valores: naturalmente idempotente, no requiere operationId
+   * (NFR-34, aclaración). No toca status ni credenciales.
+   */
+  async updateApprovedProfile(
+    caregiverId: string,
+    patch: UpdateApprovedProfileInput,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager ? manager.getRepository(Caregiver) : this.caregivers;
+    await repo.update(caregiverId, patch);
+  }
+
+  /**
+   * UC-02 A3 · Agrega una versión efectivo-fechada de la tarifa (NFR-03/23). Append-only: nunca
+   * modifica versiones pasadas. Idempotente por operationId.
+   */
+  async createRateVersion(
+    caregiverId: string,
+    rates: Rates,
+    effectiveFrom: Date,
+    operationId: string,
+    manager?: EntityManager,
+  ): Promise<CaregiverRateVersion> {
+    const repo = manager ? manager.getRepository(CaregiverRateVersion) : this.rateVersions;
+    const existing = await repo.findOne({ where: { createdByOperationId: operationId } });
+    if (existing) return existing;
+    return repo.save(repo.create({ caregiverId, rates, effectiveFrom, createdByOperationId: operationId }));
+  }
+
+  /** UC-02 A3 · Historial de tarifas en orden de vigencia (solo lectura; la historia no se reescribe). */
+  listRateVersions(caregiverId: string): Promise<CaregiverRateVersion[]> {
+    return this.rateVersions.find({ where: { caregiverId }, order: { effectiveFrom: 'ASC' } });
+  }
+
   async resubmitProfile(caregiverId: string, input: ResubmitCaregiverInput): Promise<void> {
     await this.caregivers.update(caregiverId, {
       displayName: input.displayName,
