@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { CoreModule, throttlerModuleOptions } from '@keru/core';
+import { CoreModule, requestLoggerMiddleware, throttlerModuleOptions } from '@keru/core';
 import { AuthorizationModule } from './authorization/authorization.module';
 import { ReputationReadModule } from './reputation-read/reputation-read.module';
 import { OpsModule } from './ops/ops.module';
@@ -38,4 +38,10 @@ import { ReferenceModule } from './reference/reference.module';
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // Observabilidad KER-15: request-id + log JSON por request en todo el borde HTTP.
+  // Como middleware corre antes que los guards: hasta un 401/429 sale correlacionado.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(requestLoggerMiddleware).forRoutes('{*splat}');
+  }
+}

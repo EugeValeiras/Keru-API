@@ -41,6 +41,10 @@ export * from './auth/roles.guard';
 export * from './errors/error-response';
 export * from './errors/all-exceptions.filter';
 
+// Logging estructurado (observabilidad KER-15)
+export * from './logging/json-log.util';
+export * from './logging/request-logger.middleware';
+
 // Throttling (hardening KER-14)
 export * from './throttling/throttling.config';
 

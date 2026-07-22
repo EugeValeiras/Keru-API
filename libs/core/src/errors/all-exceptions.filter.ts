@@ -4,9 +4,10 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { logJsonLine } from '../logging/json-log.util';
+import { RequestWithContext } from '../logging/request-logger.middleware';
 import { ErrorResponse, httpStatusToCode } from './error-response';
 
 /**
@@ -16,8 +17,6 @@ import { ErrorResponse, httpStatusToCode } from './error-response';
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger(AllExceptionsFilter.name);
-
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -45,8 +44,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message = body.message;
         }
       }
-    } else if (exception instanceof Error) {
-      this.logger.error(exception.message, exception.stack);
+    }
+
+    // Observabilidad KER-15: todo 5xx deja el stack correlacionado por request-id.
+    if (status >= 500 && exception instanceof Error) {
+      logJsonLine({
+        level: 'error',
+        msg: exception.message,
+        requestId: (request as RequestWithContext).requestId,
+        method: request.method,
+        path: request.url,
+        statusCode: status,
+        stack: exception.stack,
+      });
     }
 
     const payload: ErrorResponse = {

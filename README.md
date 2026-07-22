@@ -186,6 +186,7 @@ curl $B/catalogs                                             # catálogos de ref
 - **Idempotencia (NFR-34):** toda mutación lleva un `operationId` único provisto por el cliente; un reintento con el mismo valor no duplica el efecto.
 - **Errores:** shape uniforme `{ statusCode, code, message, details?, path, timestamp }`. `code` es legible por máquina (`VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `CONFLICT`, …).
 - **Rate limiting:** límites por **IP** por minuto (ver tabla abajo). Superado el límite la API responde **429** con el envelope uniforme (`code: TOO_MANY_REQUESTS`); el cliente debe esperar y reintentar (backoff), no loopear.
+- **Correlación (`x-request-id`):** toda respuesta lleva el header `x-request-id`. Si el cliente lo manda, la API lo propaga; si no, genera un uuid. Al reportar un error, adjuntar ese id: correlaciona con los logs del servidor.
 - **Catálogos:** enums y catálogo de métricas (con unidad y rangos) en `GET /catalogs`, para dropdowns y validación del cliente.
 
 ### Límites de rate limiting
@@ -200,6 +201,16 @@ Protección contra fuerza bruta (por IP, ventana de 1 minuto):
 | Back-office interno (`admin/*`) | sin límite | Excluido: ya exige JWT + rol `admin` |
 
 La fuente de verdad de los límites es `libs/core/src/throttling/throttling.config.ts` (guard global montado en `AppModule`). Nota de despliegue: detrás de un reverse proxy, configurar `trust proxy` para que la IP vista sea la del cliente y no la del proxy.
+
+### Observabilidad: logs estructurados
+
+Cada request emite **una línea JSON parseable** a stdout (sin pino: `docker logs api | jq` o cualquier colector la ingiere tal cual):
+
+```json
+{"ts":"2026-07-22T20:00:00.000Z","level":"info","msg":"request","requestId":"<uuid>","method":"GET","path":"/api/v1/marketplace/caregivers","statusCode":200,"durationMs":12.3,"accountId":"<si hay sesión>"}
+```
+
+Los 5xx emiten además una línea `level: "error"` con el **stack** y el mismo `requestId`, así un error reportado por un cliente se rastrea con el header `x-request-id` de su respuesta. Implementación: `libs/core/src/logging/` (middleware montado en `AppModule`, antes de los guards — hasta un 401/429 sale correlacionado).
 
 ---
 
