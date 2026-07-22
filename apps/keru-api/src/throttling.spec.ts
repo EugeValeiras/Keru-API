@@ -17,6 +17,11 @@ import { MembershipManager } from '@keru/membership/manager/membership.manager';
  * + AllExceptionsFilter) para verificar el 429 con el envelope uniforme de errores.
  */
 
+// El spec valida el throttle REAL: neutralizar cualquier bypass del entorno local
+// (.env con THROTTLE_SKIP=true para las suites E2E) ANTES de bootear la app.
+process.env['THROTTLE_SKIP'] = 'false';
+delete process.env['THROTTLE_AUTH_LIMIT'];
+
 describe('KER-14 · login con más de N intentos/min devuelve 429 (config real)', () => {
   let app: INestApplication;
   let baseUrl: string;
