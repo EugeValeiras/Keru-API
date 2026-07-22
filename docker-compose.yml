@@ -82,6 +82,8 @@ services:
       S3_PUBLIC_URL: /media
       # Origen de la webapp servida por nginx (links de invitación en emails).
       APP_BASE_URL: http://localhost:8080
+      # Bypass de rate limiting para e2e en CI (nunca en despliegues reales).
+      THROTTLE_SKIP: '${THROTTLE_SKIP:-false}'
     depends_on:
       postgres:
         condition: service_healthy
