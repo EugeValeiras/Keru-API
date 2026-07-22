@@ -38,11 +38,15 @@ export class AlertAccess {
     @InjectRepository(Notification) private readonly notifications: Repository<Notification>,
   ) {}
 
+  // operation-identity: exempt — corre dentro de la transacción del registro clínico
+  // (outbox atómico): el at-most-once lo garantiza el operationId del verbo padre.
   createAlert(input: CreateAlertInput, manager: EntityManager): Promise<Alert> {
     const repo = manager.getRepository(Alert);
     return repo.save(repo.create(input));
   }
 
+  // operation-identity: exempt — misma transacción que el registro/alerta; el retry
+  // no-opea en el verbo padre (createdByOperationId), acá no se duplica nada.
   createNotification(input: CreateNotificationInput, manager: EntityManager): Promise<Notification> {
     const repo = manager.getRepository(Notification);
     return repo.save(repo.create({ ...input, read: false }));

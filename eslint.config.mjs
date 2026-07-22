@@ -13,6 +13,44 @@ import boundaries from 'eslint-plugin-boundaries';
  *   libs/core/**                           -> Utilities / base compartida
  *   apps/**                                -> composición / entrypoint
  */
+/**
+ * Regla local (constitution §5 NFR-34): todo verbo de CREACIÓN de un ResourceAccess
+ * toma una operation-identity del cliente (efecto at-most-once). Un método
+ * create/submit/record/register sin parámetro `operationId` es error, salvo
+ * exención explícita con un comentario `operation-identity: exempt — <porqué>`
+ * inmediatamente antes del método (p. ej. at-most-once garantizado por una
+ * restricción única, o no-idempotencia deliberada documentada en el UC).
+ */
+const operationIdentityRule = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'NFR-34: verbos de creación de ResourceAccess llevan operation-identity' },
+    schema: [],
+    messages: {
+      missing:
+        "NFR-34: el verbo de creación '{{name}}' no recibe 'operationId'. Agregalo, o eximilo con un comentario 'operation-identity: exempt — <porqué>' si el at-most-once está garantizado por otra vía.",
+    },
+  },
+  create(context) {
+    const CREATION = /^(create|submit|record|register)/;
+    return {
+      MethodDefinition(node) {
+        if (node.kind !== 'method' || node.key.type !== 'Identifier') return;
+        if (!CREATION.test(node.key.name)) return;
+        const params = node.value.params ?? [];
+        const hasOperationId = params.some((p) => {
+          const id = p.type === 'AssignmentPattern' ? p.left : p;
+          return id.type === 'Identifier' && id.name === 'operationId';
+        });
+        if (hasOperationId) return;
+        const comments = context.sourceCode.getCommentsBefore(node);
+        if (comments.some((c) => c.value.includes('operation-identity: exempt'))) return;
+        context.report({ node: node.key, messageId: 'missing', data: { name: node.key.name } });
+      },
+    };
+  },
+};
+
 export default tseslint.config(
   {
     ignores: ['dist/**', 'node_modules/**', 'eslint.config.mjs'],
@@ -84,6 +122,13 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    // Constitution §5 (NFR-34): idempotencia de plataforma en los verbos de creación.
+    files: ['libs/*/src/resource-access/**/*.ts'],
+    ignores: ['**/*.spec.ts', '**/entities/**'],
+    plugins: { keru: { rules: { 'operation-identity': operationIdentityRule } } },
+    rules: { 'keru/operation-identity': 'error' },
   },
   {
     // Los specs pueden importar lo que necesiten.

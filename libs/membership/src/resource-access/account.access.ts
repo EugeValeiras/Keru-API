@@ -50,6 +50,9 @@ export class AccountAccess {
 
   // --- Invitaciones familiares (UC-03) ---
 
+  // operation-identity: exempt — UC-03: cada emisión crea deliberadamente un token
+  // nuevo (30 min, un solo uso). Un retry de red puede acuñar dos tokens válidos:
+  // riesgo bajo y acotado; decisión de agregar operationId → tarea KER-13.
   createInvitation(input: CreateInvitationInput): Promise<FamilyInvitation> {
     return this.invitations.save(this.invitations.create({ ...input, status: 'pending' }));
   }
@@ -82,6 +85,8 @@ export class AccountAccess {
   // --- Cuentas (UC-04) ---
 
   /** Crea una cuenta. El email es único: lanza si ya existe (el Manager lo mapea a 409). */
+  // operation-identity: exempt — at-most-once garantizado por unique(email): el
+  // retry tras un éxito con respuesta perdida da 409, nunca una cuenta duplicada.
   createAccount(input: CreateAccountInput): Promise<Account> {
     return this.accounts.save(this.accounts.create(input));
   }

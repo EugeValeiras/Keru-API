@@ -27,6 +27,8 @@ export interface Aggregate {
 export class ReviewAccess {
   constructor(@InjectRepository(Review) private readonly reviews: Repository<Review>) {}
 
+  // operation-identity: exempt — at-most-once por unique(requestId, authorAccountId)
+  // (NFR-21: una reseña por servicio y autor, inmutable). El retry da conflicto, no duplica.
   create(input: CreateReviewInput): Promise<Review> {
     return this.reviews.save(this.reviews.create({ ...input, revealed: false }));
   }
