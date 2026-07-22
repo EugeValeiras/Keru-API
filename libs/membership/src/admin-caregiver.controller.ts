@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import { CaregiverResponseDto } from './manager/dto/caregiver-response.dto';
@@ -13,6 +14,7 @@ import { CaregiverStatus } from './resource-access/entities/caregiver.entity';
 
 /** UC-19 · Back-office: aprobación y verificación de cuidadores. Requiere rol `admin`. */
 @ApiTags('Back-office')
+@SkipThrottle() // interno (KER-14): ya exige JWT + rol admin
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')

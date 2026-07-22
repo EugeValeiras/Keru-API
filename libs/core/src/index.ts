@@ -41,5 +41,8 @@ export * from './auth/roles.guard';
 export * from './errors/error-response';
 export * from './errors/all-exceptions.filter';
 
+// Throttling (hardening KER-14)
+export * from './throttling/throttling.config';
+
 // Module
 export * from './core.module';

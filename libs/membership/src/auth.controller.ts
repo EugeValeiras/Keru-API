@@ -1,10 +1,13 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { THROTTLE_LIMITS, THROTTLE_TTL_MS } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import { AuthResponseDto, LoginDto, SignupDto } from './manager/dto/auth.dto';
 
-/** UC-04 · Autenticación. Endpoints públicos (sin guard). */
+/** UC-04 · Autenticación. Endpoints públicos (sin guard); cuota estricta anti fuerza bruta (KER-14). */
 @ApiTags('Auth')
+@Throttle({ default: { limit: THROTTLE_LIMITS.auth, ttl: THROTTLE_TTL_MS } })
 @Controller('auth')
 export class AuthController {
   constructor(private readonly membership: MembershipManager) {}

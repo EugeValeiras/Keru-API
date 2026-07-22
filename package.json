@@ -34,6 +34,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/schedule": "^6.1.3",
     "@nestjs/swagger": "^11.4.6",
+    "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.0",
@@ -91,8 +92,8 @@
     },
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/.kanban/",
-      "/dist/"
+      "<rootDir>/.kanban/",
+      "<rootDir>/dist/"
     ]
   }
 }

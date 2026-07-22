@@ -1,9 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AuditUtility, JwtAuthGuard, Roles, RolesGuard } from '@keru/core';
 
 /** Visor del audit log para el back-office (NFR-33). Requiere rol admin. */
 @ApiTags('Ops')
+@SkipThrottle() // interno (KER-14): ya exige JWT + rol admin
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
