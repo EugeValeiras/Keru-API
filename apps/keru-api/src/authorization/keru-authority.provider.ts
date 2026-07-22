@@ -36,6 +36,15 @@ export class KeruAuthorityProvider implements AuthorityProvider {
     );
   }
 
+  /** Alguna asignación con el paciente, sin importar ventana ni estado (llegada tardía vs ajeno, NFR-30). */
+  async hasAnyAssignment(query: AuthorityQuery): Promise<boolean> {
+    if (query.accountId === '') return false;
+    const caregiver = await this.caregivers.findByAccountId(query.accountId);
+    if (!caregiver) return false;
+    const assignments = await this.hiring.listAssignmentsForPatient(query.patientId);
+    return assignments.some((a) => a.caregiverId === caregiver.id);
+  }
+
   async isAdmin(accountId: string): Promise<boolean> {
     const account = await this.accounts.findAccountById(accountId);
     return account?.role === 'admin';

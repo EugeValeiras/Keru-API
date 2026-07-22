@@ -8,6 +8,8 @@ import { RecordResponseDto } from './manager/dto/responses.dto';
 /**
  * Registro clínico (UC-12/13/20). Cuidador con asignación vigente o familiar vinculado.
  * El permiso se evalúa en el Manager al momento de la medición (NFR-30) — sin @Roles fijo acá.
+ * Una llegada tardía no autorizada responde 201 con status 'quarantined' (UC-12 A3): el intento
+ * queda en cuarentena para que el círculo lo resuelva — nunca 403 seco ni descarte silencioso.
  */
 @ApiTags('Care record')
 @ApiBearerAuth()

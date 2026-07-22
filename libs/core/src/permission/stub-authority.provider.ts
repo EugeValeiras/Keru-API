@@ -14,6 +14,9 @@ export class StubAuthorityProvider implements AuthorityProvider {
   async hasActiveAssignment(_query: AuthorityQuery): Promise<boolean> {
     return false;
   }
+  async hasAnyAssignment(_query: AuthorityQuery): Promise<boolean> {
+    return false;
+  }
   async isAdmin(_accountId: string): Promise<boolean> {
     return false;
   }

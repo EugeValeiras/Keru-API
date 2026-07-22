@@ -3,6 +3,9 @@ import { Engine } from '../idesign/idesign';
 import { AUTHORITY_PROVIDER, AuthorityProvider } from './authority-provider';
 import { AuthorityQuery, LinkRole } from './permission.types';
 
+/** Resultado de clasificar una escritura clínica al tiempo de medición (NFR-30). */
+export type ClinicalWriteAuthority = 'authorized' | 'quarantine' | 'forbidden';
+
 /**
  * PermissionEngine (constitution §3.1). Decisión de rol-y-vínculo sobre el par
  * (cuenta, rol-en-vínculo/asignación) a un tiempo de evaluación explícito. Cálculo puro:
@@ -42,6 +45,18 @@ export class PermissionEngine {
   async assertLinked(query: AuthorityQuery): Promise<void> {
     const roles = await this.authority.getLinkRoles(query);
     if (roles.length === 0) throw new ForbiddenException('No estás vinculado a este paciente');
+  }
+
+  /**
+   * Clasifica una escritura clínica al tiempo de medición (NFR-30): `authorized` (vínculo o
+   * asignación que cubre `at`); `quarantine` (llegada tardía de un cuidador CON relación de
+   * cuidado — alguna asignación con el paciente — pero sin ventana que cubra `at`: se pone en
+   * cuarentena, nunca se descarta en silencio); `forbidden` (sin relación alguna: 403 seco).
+   */
+  async classifyClinicalWrite(query: AuthorityQuery): Promise<ClinicalWriteAuthority> {
+    if (await this.canRecordClinical(query)) return 'authorized';
+    if (await this.authority.hasAnyAssignment(query)) return 'quarantine';
+    return 'forbidden';
   }
 
   async assertCanRecordClinical(query: AuthorityQuery): Promise<void> {

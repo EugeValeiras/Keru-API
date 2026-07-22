@@ -16,6 +16,13 @@ export interface AuthorityProvider {
   /** ¿La cuenta (cuidador) tiene asignación vigente al paciente en `at`? */
   hasActiveAssignment(query: AuthorityQuery): Promise<boolean>;
 
+  /**
+   * ¿La cuenta (cuidador) tiene ALGUNA asignación con el paciente, sin importar ventana ni estado?
+   * Distingue una llegada tardía de una relación de cuidado (→ cuarentena, NFR-30) de un intento
+   * sin relación alguna (→ prohibido).
+   */
+  hasAnyAssignment(query: AuthorityQuery): Promise<boolean>;
+
   /** ¿La cuenta es administrador? */
   isAdmin(accountId: string): Promise<boolean>;
 }
