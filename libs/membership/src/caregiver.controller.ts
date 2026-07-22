@@ -1,8 +1,9 @@
-import { Body, Controller, Get, NotFoundException, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import { RegisterCaregiverDto } from './manager/dto/register-caregiver.dto';
+import { UpdateCaregiverProfileDto } from './manager/dto/update-caregiver-profile.dto';
 import { CaregiverResponseDto } from './manager/dto/caregiver-response.dto';
 
 /** UC-02 · Perfil profesional del cuidador. Requiere cuenta con rol `caregiver`. */
@@ -40,6 +41,20 @@ export class CaregiverController {
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<CaregiverResponseDto> {
     return CaregiverResponseDto.from(await this.membership.resubmitCaregiver(dto, account.accountId));
+  }
+
+  @Patch('me')
+  @ApiOperation({
+    summary: 'UC-02 A3 · Editar el perfil aprobado',
+    description:
+      'Set parcial de foto, disponibilidad, tarifas, zona y modalidades sin re-aprobación (el perfil sigue aprobado y visible). La tarifa es efectivo-fechada (NFR-03/23): cada cambio agrega una versión al historial y las solicitudes existentes conservan su tarifa pinneada. Credenciales (nombre/especialidades/certificaciones) no se editan por esta vía.',
+  })
+  @ApiOkResponse({ type: CaregiverResponseDto })
+  async updateApproved(
+    @Body() dto: UpdateCaregiverProfileDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<CaregiverResponseDto> {
+    return CaregiverResponseDto.from(await this.membership.updateApprovedCaregiver(dto, account.accountId));
   }
 
   @Get('me')

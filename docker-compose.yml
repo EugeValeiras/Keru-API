@@ -89,6 +89,8 @@ services:
       # KER-14: en este stack local la suite E2E hace varios signups por corrida detrás del
       # nginx (una sola IP); en prod real dejar el default estricto (5/min) sin esta env.
       THROTTLE_AUTH_LIMIT: ${THROTTLE_AUTH_LIMIT:-50}
+      # Bypass total de rate limiting para e2e en CI (nunca en despliegues reales).
+      THROTTLE_SKIP: '${THROTTLE_SKIP:-false}' 
     depends_on:
       postgres:
         condition: service_healthy

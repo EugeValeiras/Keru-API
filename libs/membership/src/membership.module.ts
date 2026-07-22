@@ -4,6 +4,7 @@ import { Patient } from './resource-access/entities/patient.entity';
 import { PatientLink } from './resource-access/entities/patient-link.entity';
 import { Account } from './resource-access/entities/account.entity';
 import { Caregiver } from './resource-access/entities/caregiver.entity';
+import { CaregiverRateVersion } from './resource-access/entities/caregiver-rate-version.entity';
 import { FamilyInvitation } from './resource-access/entities/family-invitation.entity';
 import { AccountAccess } from './resource-access/account.access';
 import { CaregiverAccess } from './resource-access/caregiver.access';
@@ -23,7 +24,9 @@ import { FilesController } from './files.controller';
  * TODO: UC-03 (invitación familiar).
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Patient, PatientLink, Account, Caregiver, FamilyInvitation])],
+  imports: [
+    TypeOrmModule.forFeature([Patient, PatientLink, Account, Caregiver, CaregiverRateVersion, FamilyInvitation]),
+  ],
   controllers: [
     AuthController,
     MembershipController,

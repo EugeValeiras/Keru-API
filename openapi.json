@@ -328,6 +328,42 @@
           "Caregivers"
         ]
       },
+      "patch": {
+        "description": "Set parcial de foto, disponibilidad, tarifas, zona y modalidades sin re-aprobación (el perfil sigue aprobado y visible). La tarifa es efectivo-fechada (NFR-03/23): cada cambio agrega una versión al historial y las solicitudes existentes conservan su tarifa pinneada. Credenciales (nombre/especialidades/certificaciones) no se editan por esta vía.",
+        "operationId": "CaregiverController_updateApproved_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCaregiverProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-02 A3 · Editar el perfil aprobado",
+        "tags": [
+          "Caregivers"
+        ]
+      },
       "get": {
         "operationId": "CaregiverController_myProfile_v1",
         "parameters": [],
@@ -2874,6 +2910,50 @@
           "zone",
           "modalities",
           "badges"
+        ]
+      },
+      "UpdateCaregiverProfileDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "photoUrl": {
+            "type": "string",
+            "example": "http://localhost:4566/keru-media/images/abc.jpg"
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityDto"
+            }
+          },
+          "rates": {
+            "$ref": "#/components/schemas/RatesDto"
+          },
+          "zone": {
+            "type": "string",
+            "example": "Palermo, CABA"
+          },
+          "modalities": {
+            "type": "array",
+            "example": [
+              "home",
+              "hospital"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "home",
+                "hospital"
+              ]
+            }
+          }
+        },
+        "required": [
+          "operationId"
         ]
       },
       "CaregiverDetailDto": {

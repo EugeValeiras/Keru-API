@@ -6,4 +6,5 @@ export * from './resource-access/entities/patient.entity';
 export * from './resource-access/entities/patient-link.entity';
 export * from './resource-access/entities/account.entity';
 export * from './resource-access/entities/caregiver.entity';
+export * from './resource-access/entities/caregiver-rate-version.entity';
 export * from './resource-access/entities/family-invitation.entity';
