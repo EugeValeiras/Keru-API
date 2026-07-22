@@ -1,11 +1,13 @@
 import { Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard, Roles, RolesGuard } from '@keru/core';
 import { HiringManager } from '@keru/hiring';
 import { ReputationManager } from '@keru/reputation';
 
 /** Ops / back-office: correr los barridos de vencidos manualmente (NFR-14). Requiere rol admin. */
 @ApiTags('Ops')
+@SkipThrottle() // interno (KER-14): ya exige JWT + rol admin
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')

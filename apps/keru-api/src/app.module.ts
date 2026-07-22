@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { CoreModule } from '@keru/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { CoreModule, throttlerModuleOptions } from '@keru/core';
 import { AuthorizationModule } from './authorization/authorization.module';
 import { ReputationReadModule } from './reputation-read/reputation-read.module';
 import { OpsModule } from './ops/ops.module';
@@ -20,6 +22,8 @@ import { ReferenceModule } from './reference/reference.module';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    // Hardening KER-14: rate limiting por IP en todo el borde HTTP (guard global abajo).
+    ThrottlerModule.forRoot(throttlerModuleOptions),
     CoreModule,
     AuthorizationModule,
     ReputationReadModule,
@@ -32,5 +36,6 @@ import { ReferenceModule } from './reference/reference.module';
     OpsModule,
     WorkerModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

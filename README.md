@@ -23,7 +23,7 @@ Este repositorio es el **backend** (API REST). Los clientes (app móvil, web, ba
 | **D+G — CareRecord** (clínico + alertas) | UC-12 vitales · UC-13 medicación · UC-18 alertas/campana · UC-20 novedad | ✅ |
 | **E — CareConsult** (lectura) | UC-14 estado/historial · UC-15 gráficos | ✅ |
 | **F — Reputation** | UC-17 calificar cuidador · UC-21 calificar paciente | ✅ |
-| Base transversal | auth JWT, RolesGuard, envelope de errores, versionado `/api/v1`, CORS, catálogos, seed | ✅ |
+| Base transversal | auth JWT, RolesGuard, envelope de errores, rate limiting, versionado `/api/v1`, CORS, catálogos, seed | ✅ |
 
 Los **20 casos de uso del MVP** (UC-01..10, UC-12..22) están implementados y verificados con smoke tests en vivo. **UC-11 reservado** para pagos (fuera de alcance). API: **37 rutas** en `openapi.json`.
 
@@ -185,7 +185,21 @@ curl $B/catalogs                                             # catálogos de ref
 - **Versionado:** todas las rutas cuelgan de `/api/v1`.
 - **Idempotencia (NFR-34):** toda mutación lleva un `operationId` único provisto por el cliente; un reintento con el mismo valor no duplica el efecto.
 - **Errores:** shape uniforme `{ statusCode, code, message, details?, path, timestamp }`. `code` es legible por máquina (`VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `CONFLICT`, …).
+- **Rate limiting:** límites por **IP** por minuto (ver tabla abajo). Superado el límite la API responde **429** con el envelope uniforme (`code: TOO_MANY_REQUESTS`); el cliente debe esperar y reintentar (backoff), no loopear.
 - **Catálogos:** enums y catálogo de métricas (con unidad y rangos) en `GET /catalogs`, para dropdowns y validación del cliente.
+
+### Límites de rate limiting
+
+Protección contra fuerza bruta (por IP, ventana de 1 minuto):
+
+| Superficie | Límite | Por qué |
+|---|---|---|
+| `POST /auth/login` · `POST /auth/signup` | **5/min** | Fuerza bruta de credenciales (UC-04) |
+| `GET /invitations/:token` (preview pública, sin sesión) | **30/min** | Adivinación de tokens de invitación (UC-03) |
+| Resto de la API | **100/min** | Techo general razonable para un cliente legítimo |
+| Back-office interno (`admin/*`) | sin límite | Excluido: ya exige JWT + rol `admin` |
+
+La fuente de verdad de los límites es `libs/core/src/throttling/throttling.config.ts` (guard global montado en `AppModule`). Nota de despliegue: detrás de un reverse proxy, configurar `trust proxy` para que la IP vista sea la del cliente y no la del proxy.
 
 ---
 

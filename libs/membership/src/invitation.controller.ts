@@ -6,7 +6,8 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
+import { Throttle } from '@nestjs/throttler';
+import { AuthPrincipal, CurrentAccount, JwtAuthGuard, THROTTLE_LIMITS, THROTTLE_TTL_MS } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import {
   CreateInvitationDto,
@@ -69,8 +70,10 @@ export class InvitationController {
     return EmittedInvitationDto.from(revoked);
   }
 
-  /** Pantalla de confirmación (deep link). Público: no requiere sesión para previsualizar. */
+  /** Pantalla de confirmación (deep link). Público: no requiere sesión para previsualizar.
+   * Cuota reducida (KER-14): frena la adivinación de tokens por fuerza bruta. */
   @Get('invitations/:token')
+  @Throttle({ default: { limit: THROTTLE_LIMITS.invitationPreview, ttl: THROTTLE_TTL_MS } })
   @ApiOperation({ summary: 'UC-03 · Previsualizar invitación' })
   @ApiOkResponse({ description: 'Datos de la invitación para la pantalla de confirmación' })
   preview(@Param('token') token: string) {

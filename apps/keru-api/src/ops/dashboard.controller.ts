@@ -1,11 +1,13 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard, Roles, RolesGuard } from '@keru/core';
 import { MembershipManager } from '@keru/membership';
 import { HiringManager } from '@keru/hiring';
 
 /** Dashboard operativo del back-office: métricas agregadas. Requiere rol admin. */
 @ApiTags('Ops')
+@SkipThrottle() // interno (KER-14): ya exige JWT + rol admin
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
