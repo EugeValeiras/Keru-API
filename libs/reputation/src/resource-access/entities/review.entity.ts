@@ -8,12 +8,14 @@ export type ReviewSubject = 'caregiver' | 'patient';
  */
 @Entity({ name: 'review' })
 @Unique(['requestId', 'authorAccountId'])
+/** Reseñas reveladas de un sujeto (listRevealedForSubject / averagesForSubjects). */
+@Index(['subjectType', 'subjectId', 'revealed'])
 export class Review {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  /** Consultas por requestId cubiertas por el prefijo del @Unique de arriba. */
   @Column({ type: 'uuid' })
-  @Index()
   requestId!: string;
 
   @Column({ type: 'varchar', length: 128 })
@@ -23,7 +25,6 @@ export class Review {
   subjectType!: ReviewSubject;
 
   @Column({ type: 'uuid' })
-  @Index()
   subjectId!: string;
 
   @Column({ type: 'int' })

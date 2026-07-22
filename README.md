@@ -212,6 +212,16 @@ Cada request emite **una línea JSON parseable** a stdout (sin pino: `docker log
 
 Los 5xx emiten además una línea `level: "error"` con el **stack** y el mismo `requestId`, así un error reportado por un cliente se rastrea con el header `x-request-id` de su respuesta. Implementación: `libs/core/src/logging/` (middleware montado en `AppModule`, antes de los guards — hasta un 401/429 sale correlacionado).
 
+### Rendimiento: criterio de indexación
+
+Los índices viven **solo como decoradores `@Index` en las entidades** de cada `resource-access/` (con `DB_SYNCHRONIZE` se aplican en dev; producción usará migraciones cuando existan). El criterio para decidirlos:
+
+1. **Queries por réplica**: se auditan los métodos de los ResourceAccess (ahí está el 100% del SQL — los Managers no arman queries) y se listan las consultas calientes de cada tabla: las que corren por request de lectura frecuente (historial, campana, agenda, reseñas) o por barrido.
+2. **Un índice compuesto por patrón de acceso**: columnas de igualdad primero, la columna de orden al final (ej.: historial clínico `(patientId, measuredAt)` — el `ORDER BY measuredAt DESC` se resuelve recorriendo el índice hacia atrás). No se indexa "por columna": se indexa la consulta.
+3. **Sin redundancia**: un índice simple que quedó como **prefijo** de un compuesto nuevo se elimina (el compuesto lo cubre); ídem si un `@Unique` ya cubre el prefijo (ej. `review.requestId`). Los booleanos solos (`read`, `revealed`) no se indexan por sí mismos salvo que un barrido filtre por ellos como primera condición.
+
+Índices compuestos vigentes: `clinical_record (patientId, measuredAt)` · `notification (recipientAccountId, read, createdAt)` · `review (subjectType, subjectId, revealed)` · `hiring_request (caregiverId, status)`; las solicitudes del solicitante usan el índice simple `requesterAccountId`.
+
 ---
 
 ## 📱 Para el agente que construye la app móvil

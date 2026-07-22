@@ -8,12 +8,13 @@ export type ClinicalRecordType = 'vitals' | 'medication' | 'note';
  * Reside en la partición clínica; se commitea junto con su obligación de alerta (Decouple row 35).
  */
 @Entity({ name: 'clinical_record' })
+/** Historial por paciente ordenado por medición (listForPatient): equality + sort en un solo índice. */
+@Index(['patientId', 'measuredAt'])
 export class ClinicalRecord {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
   @Column({ type: 'uuid' })
-  @Index()
   patientId!: string;
 
   @Column({ type: 'varchar', length: 16 })
@@ -25,9 +26,8 @@ export class ClinicalRecord {
   @Column({ type: 'varchar', length: 32 })
   authorRole!: string;
 
-  /** Tiempo de medición (NFR-36): el historial ordena por acá. */
+  /** Tiempo de medición (NFR-36): el historial ordena por acá (vía el índice compuesto). */
   @Column({ type: 'timestamptz' })
-  @Index()
   measuredAt!: Date;
 
   /** Contenido: vitals -> { values: [{metricKey,value,unit}] }; medication -> {...}; note -> { text }. */
