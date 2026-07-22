@@ -24,10 +24,9 @@ export const THROTTLE_LIMITS = {
  * de signups/logins por minuto desde una sola IP y agotan la cuota de auth — el
  * hardening no debe romper la verificación. NUNCA setearlo en producción.
  */
-const skipAll = process.env.THROTTLE_SKIP === 'true';
-
 export const throttlerModuleOptions: ThrottlerModuleOptions = {
   throttlers: [{ name: 'default', ttl: THROTTLE_TTL_MS, limit: THROTTLE_LIMITS.default }],
   errorMessage: 'Demasiadas solicitudes. Esperá un momento y volvé a intentar.',
-  skipIf: () => skipAll,
+  // Lazy a propósito: ConfigModule carga .env DESPUÉS del import de este módulo.
+  skipIf: () => process.env.THROTTLE_SKIP === 'true',
 };
