@@ -21,6 +21,24 @@ export class PatientResponseDto {
   duplicateCandidateId?: string;
 }
 
+/** UC-22 · Miembro del círculo: cuenta vinculada al paciente + rol de su vínculo. */
+export class PatientLinkDto {
+  @ApiProperty({ format: 'uuid' })
+  accountId!: string;
+
+  @ApiProperty({ example: 'María Díaz' })
+  displayName!: string;
+
+  @ApiProperty({ example: 'maria@example.com' })
+  email!: string;
+
+  @ApiProperty({ enum: ['consent-holder', 'manager', 'viewer'], description: 'Rol del vínculo con el paciente.' })
+  role!: LinkRole;
+
+  @ApiProperty({ format: 'date-time', description: 'Cuándo se creó el vínculo.' })
+  since!: string;
+}
+
 /** UC-22 · Ficha completa del paciente, con el rol del vínculo de quien consulta. */
 export class PatientRecordDto {
   @ApiProperty({ format: 'uuid' })

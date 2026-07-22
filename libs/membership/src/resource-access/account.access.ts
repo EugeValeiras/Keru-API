@@ -99,6 +99,12 @@ export class AccountAccess {
     return this.accounts.findOne({ where: { id } });
   }
 
+  /** Cuentas por id (para resolver los miembros del círculo, UC-22). */
+  findAccountsByIds(ids: string[]): Promise<Account[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.accounts.find({ where: { id: In(ids) } });
+  }
+
   /** Crea el perfil de paciente. Idempotente: un reintento con el mismo operationId devuelve el existente (NFR-34). */
   async createPatientProfile(
     input: CreatePatientInput,

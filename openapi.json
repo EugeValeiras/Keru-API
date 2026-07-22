@@ -213,6 +213,46 @@
         ]
       }
     },
+    "/api/v1/patients/{id}/links": {
+      "get": {
+        "description": "Cuentas vinculadas al paciente (displayName/email) con el rol de su vínculo. Visible para cualquier vinculado; una cuenta sin vínculo recibe 403.",
+        "operationId": "MembershipController_patientCircle_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PatientLinkDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-22 · Círculo del paciente",
+        "tags": [
+          "Membership"
+        ]
+      }
+    },
     "/api/v1/caregivers": {
       "post": {
         "description": "Crea el perfil profesional en estado pending. No visible en el marketplace hasta UC-19.",
@@ -2203,6 +2243,44 @@
           "allergies",
           "emergencyContact",
           "linkRole"
+        ]
+      },
+      "PatientLinkDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "María Díaz"
+          },
+          "email": {
+            "type": "string",
+            "example": "maria@example.com"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "consent-holder",
+              "manager",
+              "viewer"
+            ],
+            "description": "Rol del vínculo con el paciente."
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Cuándo se creó el vínculo."
+          }
+        },
+        "required": [
+          "accountId",
+          "displayName",
+          "email",
+          "role",
+          "since"
         ]
       },
       "UpdatePatientDto": {

@@ -10,7 +10,7 @@ import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import { RegisterPatientDto } from './manager/dto/register-patient.dto';
 import { UpdatePatientDto } from './manager/dto/update-patient.dto';
-import { PatientRecordDto, PatientResponseDto } from './manager/dto/patient-response.dto';
+import { PatientLinkDto, PatientRecordDto, PatientResponseDto } from './manager/dto/patient-response.dto';
 
 /**
  * Puerta de entrada del dominio Membership (constitution §3.2: Client → Manager).
@@ -67,6 +67,23 @@ export class MembershipController {
   ): Promise<PatientRecordDto> {
     const record = await this.membership.getPatientRecord(id, account.accountId);
     return PatientRecordDto.from(record.patient, record.age, record.linkRole);
+  }
+
+  /** UC-22 · Círculo del paciente: cuentas vinculadas y su rol (visible para cualquier vinculado). */
+  @Get('patients/:id/links')
+  @ApiOperation({
+    summary: 'UC-22 · Círculo del paciente',
+    description:
+      'Cuentas vinculadas al paciente (displayName/email) con el rol de su vínculo. ' +
+      'Visible para cualquier vinculado; una cuenta sin vínculo recibe 403.',
+  })
+  @ApiOkResponse({ type: PatientLinkDto, isArray: true })
+  async patientCircle(
+    @Param('id') id: string,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<PatientLinkDto[]> {
+    const members = await this.membership.getPatientCircle(id, account.accountId);
+    return members.map((m) => ({ ...m, since: m.since.toISOString() }));
   }
 
   /** UC-22 · Editar la ficha del paciente (solo consent-holder o manager). */

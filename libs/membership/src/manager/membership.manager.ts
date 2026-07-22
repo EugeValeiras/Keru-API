@@ -54,6 +54,15 @@ export interface PatientRecord {
   linkRole: LinkRole;
 }
 
+/** UC-22 · Miembro del círculo del paciente: cuenta vinculada + rol de su vínculo. */
+export interface CircleMember {
+  accountId: string;
+  displayName: string;
+  email: string;
+  role: LinkRole;
+  since: Date;
+}
+
 /**
  * MembershipManager (constitution §3.1). Orquesta joining/leaving: registro, aprobación,
  * invitaciones, vínculos. Acá: UC-01 (registrar paciente) — crea el perfil y vincula al
@@ -173,6 +182,30 @@ export class MembershipManager {
     const patient = await this.requirePatient(patientId);
     const link = await this.requireLink(patientId, accountId);
     return { patient, age: this.deriveAge(patient.birthDate), linkRole: link.role };
+  }
+
+  /** UC-22 · Círculo del paciente: cuentas vinculadas y su rol. Visible para cualquier vinculado. */
+  async getPatientCircle(patientId: string, accountId: string): Promise<CircleMember[]> {
+    await this.requirePatient(patientId);
+    await this.requireLink(patientId, accountId);
+
+    const links = await this.accountAccess.listLinksForPatient(patientId);
+    const accounts = await this.accountAccess.findAccountsByIds(links.map((l) => l.accountId));
+    const accountById = new Map(accounts.map((a) => [a.id, a]));
+
+    return links
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((link) => {
+        const account = accountById.get(link.accountId);
+        return {
+          accountId: link.accountId,
+          displayName: account?.displayName ?? '',
+          email: account?.email ?? '',
+          role: link.role,
+          since: link.createdAt,
+        };
+      });
   }
 
   /** UC-22 · Editar la ficha. Solo `consent-holder` y `manager` (un `viewer` solo lee). */

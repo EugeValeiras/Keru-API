@@ -51,6 +51,8 @@ function makeManager(overrides: Record<string, unknown> = {}) {
       findPatientById: jest.fn().mockResolvedValue(patient()),
       getLink: jest.fn().mockResolvedValue({ patientId: 'pat-1', accountId: 'acc-1', role: 'manager' }),
       updatePatient: jest.fn().mockResolvedValue(undefined),
+      listLinksForPatient: jest.fn().mockResolvedValue([]),
+      findAccountsByIds: jest.fn().mockResolvedValue([]),
     },
     caregiverAccess: {
       findByAccountId: jest.fn().mockResolvedValue(rejectedCaregiver()),
@@ -107,6 +109,54 @@ describe('UC-22 · editar la ficha del paciente (rol del vínculo)', () => {
       }),
     );
     expect(result.linkRole).toBe('manager');
+  });
+});
+
+describe('UC-22 · círculo del paciente (GET /patients/:id/links)', () => {
+  const circleLinks = [
+    { patientId: 'pat-1', accountId: 'acc-2', role: 'viewer', createdAt: new Date('2026-02-01') },
+    { patientId: 'pat-1', accountId: 'acc-1', role: 'consent-holder', createdAt: new Date('2026-01-01') },
+  ];
+  const circleAccounts = [
+    { id: 'acc-1', displayName: 'María Díaz', email: 'maria@example.com' },
+    { id: 'acc-2', displayName: 'Pedro Díaz', email: 'pedro@example.com' },
+  ];
+
+  it('Dado un vínculo viewer, cuando consulta el círculo, entonces ve cada cuenta (nombre/email) con su rol, ordenadas por antigüedad del vínculo', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['getLink'].mockResolvedValue({ patientId: 'pat-1', accountId: 'acc-2', role: 'viewer' });
+    access['listLinksForPatient'].mockResolvedValue(circleLinks);
+    access['findAccountsByIds'].mockResolvedValue(circleAccounts);
+
+    const circle = await manager.getPatientCircle('pat-1', 'acc-2');
+
+    expect(access['findAccountsByIds']).toHaveBeenCalledWith(['acc-2', 'acc-1']);
+    expect(circle).toEqual([
+      {
+        accountId: 'acc-1',
+        displayName: 'María Díaz',
+        email: 'maria@example.com',
+        role: 'consent-holder',
+        since: new Date('2026-01-01'),
+      },
+      {
+        accountId: 'acc-2',
+        displayName: 'Pedro Díaz',
+        email: 'pedro@example.com',
+        role: 'viewer',
+        since: new Date('2026-02-01'),
+      },
+    ]);
+  });
+
+  it('Dada una cuenta sin vínculo, cuando consulta el círculo, entonces 403 y no se listan los vínculos', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['getLink'].mockResolvedValue(null);
+
+    await expect(manager.getPatientCircle('pat-1', 'acc-intruso')).rejects.toThrow(ForbiddenException);
+    expect(access['listLinksForPatient']).not.toHaveBeenCalled();
   });
 });
 
