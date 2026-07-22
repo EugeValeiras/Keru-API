@@ -22,13 +22,14 @@ import {
   DomainEventType,
 } from '@keru/core';
 import { AccountAccess } from '../resource-access/account.access';
-import { CaregiverAccess } from '../resource-access/caregiver.access';
+import { CaregiverAccess, UpdateApprovedProfileInput } from '../resource-access/caregiver.access';
 import { Patient } from '../resource-access/entities/patient.entity';
 import { Caregiver } from '../resource-access/entities/caregiver.entity';
 import { FamilyInvitation } from '../resource-access/entities/family-invitation.entity';
 import { RegisterPatientDto } from './dto/register-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { RegisterCaregiverDto } from './dto/register-caregiver.dto';
+import { UpdateCaregiverProfileDto } from './dto/update-caregiver-profile.dto';
 import { AuthResponseDto, LoginDto, SignupDto } from './dto/auth.dto';
 
 const INVITATION_TTL_MINUTES = 30; // OQ-2
@@ -327,6 +328,62 @@ export class MembershipManager {
       action: 'membership.caregiver.resubmitted',
       actor: accountId,
       target: { type: 'caregiver', id: existing.id },
+    });
+
+    return (await this.caregiverAccess.findByAccountId(accountId))!;
+  }
+
+  /**
+   * UC-02 A3 · Edición del perfil aprobado: foto, disponibilidad, tarifas, zona y modalidades,
+   * sin re-aprobación (el perfil sigue `approved` y visible). La tarifa es efectivo-fechada
+   * (NFR-03/23): cada cambio agrega una versión al historial (append-only) y actualiza la
+   * vigente que lee el marketplace; las solicitudes existentes conservan su snapshot pinneado.
+   * Credenciales (nombre/especialidades/certificaciones) no se tocan por esta vía (constitution §7).
+   */
+  async updateApprovedCaregiver(dto: UpdateCaregiverProfileDto, accountId: string): Promise<Caregiver> {
+    const existing = await this.caregiverAccess.findByAccountId(accountId);
+    if (!existing) throw new NotFoundException('No tenés un perfil de cuidador');
+    if (existing.status !== 'approved') {
+      throw new BadRequestException(
+        'Solo un perfil aprobado se edita por esta vía (pendiente espera revisión; rechazado usa la re-postulación)',
+      );
+    }
+
+    // Set parcial: solo las claves presentes en el patch (nunca credenciales ni status).
+    const patch: UpdateApprovedProfileInput = Object.fromEntries(
+      Object.entries({
+        photoUrl: dto.photoUrl,
+        availability: dto.availability,
+        zone: dto.zone,
+        modalities: dto.modalities,
+      }).filter(([, value]) => value !== undefined),
+    );
+    const newRates = dto.rates
+      ? {
+          ratePerHour: dto.rates.ratePerHour,
+          currency: dto.rates.currency ?? existing.rates?.currency ?? 'ARS',
+          description: dto.rates.description,
+        }
+      : undefined;
+
+    const fields = [...Object.keys(patch), ...(newRates ? ['rates'] : [])];
+    if (fields.length === 0) return existing;
+
+    await this.tx.run(async (em) => {
+      if (newRates) {
+        // NFR-03/23: la historia no se reescribe — se agrega la versión vigente-desde-ahora
+        // y se actualiza la tarifa vigente que lee el marketplace, en la misma transacción.
+        await this.caregiverAccess.createRateVersion(existing.id, newRates, new Date(), dto.operationId, em);
+        patch.rates = newRates;
+      }
+      await this.caregiverAccess.updateApprovedProfile(existing.id, patch, em);
+      await this.audit.record({
+        action: 'membership.caregiver.profile-updated',
+        actor: accountId,
+        target: { type: 'caregiver', id: existing.id },
+        metadata: { fields },
+        manager: em,
+      });
     });
 
     return (await this.caregiverAccess.findByAccountId(accountId))!;

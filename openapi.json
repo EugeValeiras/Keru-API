@@ -328,6 +328,42 @@
           "Caregivers"
         ]
       },
+      "patch": {
+        "description": "Set parcial de foto, disponibilidad, tarifas, zona y modalidades sin re-aprobación (el perfil sigue aprobado y visible). La tarifa es efectivo-fechada (NFR-03/23): cada cambio agrega una versión al historial y las solicitudes existentes conservan su tarifa pinneada. Credenciales (nombre/especialidades/certificaciones) no se editan por esta vía.",
+        "operationId": "CaregiverController_updateApproved_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCaregiverProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-02 A3 · Editar el perfil aprobado",
+        "tags": [
+          "Caregivers"
+        ]
+      },
       "get": {
         "operationId": "CaregiverController_myProfile_v1",
         "parameters": [],
@@ -1813,6 +1849,133 @@
         ]
       }
     },
+    "/api/v1/patients/{patientId}/quarantine": {
+      "get": {
+        "operationId": "QuarantineController_list_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuarantinedRecordDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-12 A3 · Items en cuarentena del paciente (NFR-30, visibles al círculo)",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/quarantine/{id}/approve": {
+      "post": {
+        "operationId": "QuarantineController_approve_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuarantinedRecordDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-12 A3 · Aprobar: entra al historial con su measuredAt original (NFR-36)",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/quarantine/{id}/discard": {
+      "post": {
+        "operationId": "QuarantineController_discard_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuarantinedRecordDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-12 A3 · Descartar: queda marcado con traza, nunca se borra",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
     "/api/v1/patients/{patientId}/state": {
       "get": {
         "operationId": "CareConsultController_state_v1",
@@ -2619,6 +2782,50 @@
           "badges"
         ]
       },
+      "UpdateCaregiverProfileDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "photoUrl": {
+            "type": "string",
+            "example": "http://localhost:4566/keru-media/images/abc.jpg"
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityDto"
+            }
+          },
+          "rates": {
+            "$ref": "#/components/schemas/RatesDto"
+          },
+          "zone": {
+            "type": "string",
+            "example": "Palermo, CABA"
+          },
+          "modalities": {
+            "type": "array",
+            "example": [
+              "home",
+              "hospital"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "home",
+                "hospital"
+              ]
+            }
+          }
+        },
+        "required": [
+          "operationId"
+        ]
+      },
       "CaregiverDetailDto": {
         "type": "object",
         "properties": {
@@ -3336,6 +3543,14 @@
           },
           "authorRole": {
             "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "quarantined"
+            ],
+            "description": "recorded: entró al historial. quarantined: llegada tardía no autorizada en cuarentena (NFR-30), pendiente de resolución del círculo — nunca se descarta en silencio."
           }
         },
         "required": [
@@ -3343,7 +3558,8 @@
           "type",
           "patientId",
           "measuredAt",
-          "authorRole"
+          "authorRole",
+          "status"
         ]
       },
       "RecordMedicationDto": {
@@ -3461,6 +3677,85 @@
         "required": [
           "ok",
           "updated"
+        ]
+      },
+      "QuarantinedRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "vitals",
+              "medication",
+              "note"
+            ]
+          },
+          "measuredAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Tiempo de medición original (NFR-36)."
+          },
+          "receivedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Tiempo de llegada."
+          },
+          "authorAccountId": {
+            "type": "string"
+          },
+          "authorRole": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "example": "no-authority-at-measurement"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "discarded"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "description": "Contenido del registro según type."
+          },
+          "resolvedByAccountId": {
+            "type": "object",
+            "nullable": true
+          },
+          "resolvedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "approvedRecordId": {
+            "type": "object",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Si se aprobó: registro promovido al historial."
+          }
+        },
+        "required": [
+          "id",
+          "patientId",
+          "type",
+          "measuredAt",
+          "receivedAt",
+          "authorAccountId",
+          "authorRole",
+          "reason",
+          "status",
+          "data"
         ]
       }
     }

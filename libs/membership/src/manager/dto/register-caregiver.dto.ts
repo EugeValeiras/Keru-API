@@ -26,9 +26,9 @@ const CARE_TYPES = [
   'rehabilitation',
   'companionship',
 ];
-const MODALITIES = ['home', 'hospital'];
+export const MODALITIES = ['home', 'hospital'];
 
-class CertificationDto {
+export class CertificationDto {
   @ApiProperty({ example: 'Enfermería' })
   @IsString()
   @MinLength(1)
@@ -49,7 +49,7 @@ class CertificationDto {
   year!: number;
 }
 
-class AvailabilityDto {
+export class AvailabilityDto {
   @ApiProperty({ example: 1, description: '0=domingo .. 6=sábado' })
   @IsInt()
   @Min(0)
@@ -65,7 +65,7 @@ class AvailabilityDto {
   to!: string;
 }
 
-class RatesDto {
+export class RatesDto {
   @ApiProperty({ example: 3500 })
   @IsNumber()
   @Min(0)
