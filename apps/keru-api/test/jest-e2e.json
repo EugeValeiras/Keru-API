@@ -1,0 +1,21 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/../../../tsconfig.json" }]
+  },
+  "moduleNameMapper": {
+    "^@keru/core(|/.*)$": "<rootDir>/../../../libs/core/src/$1",
+    "^@keru/membership(|/.*)$": "<rootDir>/../../../libs/membership/src/$1",
+    "^@keru/hiring(|/.*)$": "<rootDir>/../../../libs/hiring/src/$1",
+    "^@keru/care-record(|/.*)$": "<rootDir>/../../../libs/care-record/src/$1",
+    "^@keru/care-consult(|/.*)$": "<rootDir>/../../../libs/care-consult/src/$1",
+    "^@keru/reputation(|/.*)$": "<rootDir>/../../../libs/reputation/src/$1"
+  },
+  "globalSetup": "<rootDir>/global-setup.ts",
+  "setupFiles": ["<rootDir>/e2e-env.ts"],
+  "maxWorkers": 1,
+  "testTimeout": 120000
+}
