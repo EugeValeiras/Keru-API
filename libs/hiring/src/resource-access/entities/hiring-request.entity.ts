@@ -18,6 +18,8 @@ export type HiringRequestStatus =
  * contra los que se hizo (rate snapshot, NFR-03/23). Idempotente por operationId (NFR-34).
  */
 @Entity({ name: 'hiring_request' })
+/** Agenda del cuidador (list + decline masivo por estado): equality en ambas columnas. */
+@Index(['caregiverId', 'status'])
 export class HiringRequest {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -31,7 +33,6 @@ export class HiringRequest {
   requesterAccountId!: string;
 
   @Column({ type: 'uuid' })
-  @Index()
   caregiverId!: string;
 
   @Column({ type: 'varchar', length: 16 })
