@@ -1,3 +1,7 @@
+# Nombre de proyecto fijo: los container_name/volúmenes son los mismos se corra desde
+# donde se corra (checkout base, worktree de tarea o CI) — sin colisiones ni duplicados.
+name: keru-api
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -45,15 +49,17 @@ services:
     volumes:
       - keru_flocidata:/data
 
-  # Servicio de la API. Detrás del profile "app": `docker compose up -d` levanta solo infra;
-  # `docker compose --profile app up -d --build` levanta también la API.
+  # Modo producción local. Detrás del profile "app": `docker compose up -d` levanta solo infra;
+  # `docker compose --profile app up -d --build` levanta también la API y la webapp compilada.
   api:
     build: .
     container_name: keru-api
     restart: unless-stopped
     profiles: ['app']
     ports:
-      - '3000:3000'
+      # Puerto publicado en el host configurable: API_PORT=3001 si el :3000 ya lo
+      # ocupa la API dev (npm run start:dev). Adentro de la red siempre es 3000.
+      - '${API_PORT:-3000}:3000'
     environment:
       PORT: 3000
       NODE_ENV: production
@@ -67,11 +73,37 @@ services:
       REDIS_PORT: 6379
       JWT_SECRET: dev-secret-change-me
       JWT_EXPIRES: 7d
+      # AWS contra el emulador floci (SES para el email de invitación, S3 para fotos).
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://floci:4566
+      SES_FROM: no-reply@keru.app
+      S3_BUCKET: keru-media
+      # photoUrl relativa al origen de la webapp: nginx proxya /media -> floci/keru-media.
+      S3_PUBLIC_URL: /media
+      # Origen de la webapp servida por nginx (links de invitación en emails).
+      APP_BASE_URL: http://localhost:8080
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      floci:
+        condition: service_healthy
+
+  # Webapp Angular compilada, servida por nginx (mismo profile "app"). El nginx proxya
+  # /api -> api:3000 y /media -> floci (ver nginx.conf en Keru-Webapp). El repo de la
+  # webapp se asume hermano de este; si no, apuntar KERU_WEBAPP_DIR a su checkout.
+  webapp:
+    build:
+      context: ${KERU_WEBAPP_DIR:-../Keru-Webapp}
+    container_name: keru-webapp
+    restart: unless-stopped
+    profiles: ['app']
+    ports:
+      - '8080:80'
+    depends_on:
+      api:
+        condition: service_started
 
 volumes:
   keru_pgdata:

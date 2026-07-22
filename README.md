@@ -124,18 +124,26 @@ Redis es el **backbone de la comunicación asíncrona entre dominios**, vía **B
 
 Requisitos: Docker (y Node 20 para el modo desarrollo).
 
-### Opción A — Todo con Docker (API + Postgres + Redis)
+### Opción A — Modo producción local (todo con Docker)
+
+El profile `app` levanta el stack completo prod-like: **API containerizada** (build multi-stage) + **webapp compilada** (nginx) + infra (**Postgres + Redis + floci**, el emulador AWS local para SES/S3). La API recibe las env de AWS apuntando a floci; el nginx de la webapp proxya `/api` → API y `/media` → floci, igual que el proxy de dev.
 
 ```bash
-npm run app:up      # build de la imagen + levanta api + postgres + redis
+docker compose --profile app up -d --build   # (o npm run app:up)
+# Webapp en http://localhost:8080
 # API en http://localhost:3000/api/v1 · Swagger en http://localhost:3000/api/docs
-npm run app:down    # baja todo
+npm run seed                                  # datos de demo (requiere Node 20 + npm install)
+docker compose --profile app down             # baja todo (o npm run app:down)
 ```
+
+- El build de la webapp asume el repo **`Keru-Webapp` hermano** de este (`../Keru-Webapp`); si está en otra ruta, exportá `KERU_WEBAPP_DIR=<ruta>` antes del `up`.
+- El compose fija el nombre de proyecto (`name: keru-api`): los contenedores y volúmenes son los mismos desde cualquier directorio, así que este modo **convive con la infra de la Opción B** (la toma en lugar de duplicarla). Ojo: la API containerizada publica el `:3000` — si tenés `npm run start:dev` corriendo, frenalo antes o exportá `API_PORT=3001` (la webapp no lo necesita: adentro de la red del compose la API siempre es `api:3000`).
+- Circuito E2E completo contra este modo: en `Keru-Webapp`, `E2E_BASE_URL=http://localhost:8080 npm run e2e`.
 
 ### Opción B — Infra en Docker + API en local (desarrollo con hot reload)
 
 ```bash
-# 1. Infra (Postgres + Redis)
+# 1. Infra (Postgres + Redis + floci)
 npm run infra:up
 
 # 2. Dependencias
@@ -231,7 +239,7 @@ keru/
 ├── constitution.md         # Reglas no-negociables
 ├── Keru-Casos-de-Uso-MVP.md# Fuente de verdad de producto
 ├── openapi.json            # Contrato de la API (generado)
-└── docker-compose.yml      # Postgres + Redis
+└── docker-compose.yml      # Infra local (Postgres + Redis + floci) + profile app (API + webapp)
 ```
 
 Cada dominio se organiza en `manager/`, `engine/`, `resource-access/` (capas IDesign). El límite entre capas lo verifica `npm run lint`.
@@ -248,7 +256,8 @@ Cada dominio se organiza en `manager/`, `engine/`, `resource-access/` (capas IDe
 | `npm run test` | Tests unitarios |
 | `npm run seed` | Carga datos de demo |
 | `npm run openapi` | Genera `openapi.json` |
-| `npm run infra:up` / `infra:down` | Levanta/baja Postgres + Redis |
+| `npm run infra:up` / `infra:down` | Levanta/baja la infra (Postgres + Redis + floci) |
+| `npm run app:up` / `app:down` | Modo producción local: infra + API + webapp en Docker |
 
 ---
 
