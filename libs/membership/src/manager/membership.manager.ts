@@ -512,6 +512,44 @@ export class MembershipManager {
     return invitation;
   }
 
+  /** UC-03 A4 · Invitaciones emitidas del paciente. Cualquier vinculado puede verlas. */
+  async listInvitations(patientId: string, accountId: string): Promise<FamilyInvitation[]> {
+    await this.requirePatient(patientId);
+    await this.requireLink(patientId, accountId);
+    return this.accountAccess.listInvitationsForPatient(patientId);
+  }
+
+  /**
+   * UC-03 A5 · Revocar una invitación pendiente. Solo el emisor o un `consent-holder` del
+   * paciente. Una aceptada no se revoca (el vínculo se gestiona desde el círculo); re-revocar
+   * una revocada es un no-op (transición con precondición: naturalmente idempotente, NFR-34).
+   */
+  async revokeInvitation(token: string, accountId: string): Promise<FamilyInvitation> {
+    const inv = await this.accountAccess.findInvitationByToken(token);
+    if (!inv) throw new NotFoundException('Invitación inválida');
+
+    const link = await this.accountAccess.getLink(inv.patientId, accountId);
+    const isIssuer = inv.invitedByAccountId === accountId;
+    if (!isIssuer && link?.role !== 'consent-holder') {
+      throw new ForbiddenException('Solo quien emitió la invitación o el titular puede revocarla');
+    }
+
+    if (inv.status === 'revoked') return inv;
+    if (inv.status === 'accepted') {
+      throw new BadRequestException('La invitación ya fue aceptada: no se puede revocar');
+    }
+
+    await this.accountAccess.setInvitationStatus(inv.id, 'revoked', null, null);
+    await this.audit.record({
+      action: 'membership.invitation.revoked',
+      actor: accountId,
+      target: { type: 'patient', id: inv.patientId },
+      metadata: { invitationId: inv.id, invitedEmail: inv.invitedEmail },
+    });
+
+    return { ...inv, status: 'revoked' };
+  }
+
   /** Datos para la pantalla de confirmación. No valida identidad (eso ocurre al confirmar). */
   async previewInvitation(token: string): Promise<InvitationPreview> {
     const inv = await this.accountAccess.findInvitationByToken(token);
