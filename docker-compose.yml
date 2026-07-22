@@ -31,6 +31,20 @@ services:
       timeout: 3s
       retries: 5
 
+  # Floci: emulador AWS local (estilo LocalStack). Emula SES (email de invitación, UC-03)
+  # y S3 (fotos de perfil, UC-01/02/06). Edge en :4566; las credenciales son ignoradas.
+  floci:
+    image: floci/floci:latest
+    container_name: keru-floci
+    restart: unless-stopped
+    ports:
+      - '4566:4566'
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+      SERVICES: ses,s3
+    volumes:
+      - keru_flocidata:/data
+
   # Servicio de la API. Detrás del profile "app": `docker compose up -d` levanta solo infra;
   # `docker compose --profile app up -d --build` levanta también la API.
   api:
@@ -62,3 +76,4 @@ services:
 volumes:
   keru_pgdata:
   keru_redisdata:
+  keru_flocidata:

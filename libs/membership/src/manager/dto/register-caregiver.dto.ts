@@ -92,6 +92,12 @@ export class RegisterCaregiverDto extends WithOperationIdentity {
   @MaxLength(200)
   displayName!: string;
 
+  @ApiPropertyOptional({ example: 'http://localhost:4566/keru-media/images/abc.jpg' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  photoUrl?: string;
+
   @ApiProperty({ enum: CARE_TYPES, isArray: true, example: ['elder-care', 'palliative'] })
   @IsArray()
   @ArrayNotEmpty()

@@ -14,6 +14,8 @@ import { PubSubUtility } from './outbox/pubsub.util';
 import { TransactionUtility } from './transaction/transaction.util';
 import { AuditLog } from './audit/audit-log.entity';
 import { AuditUtility } from './audit/audit.util';
+import { EmailUtility } from './email/email.util';
+import { FileStorageUtility } from './files/file-storage.util';
 
 /**
  * CoreModule: infraestructura y utilities compartidas (constitution §3, §4).
@@ -48,11 +50,13 @@ import { AuditUtility } from './audit/audit.util';
       }),
     }),
   ],
-  providers: [PubSubUtility, TransactionUtility, AuditUtility, JwtAuthGuard, RolesGuard],
+  providers: [PubSubUtility, TransactionUtility, AuditUtility, EmailUtility, FileStorageUtility, JwtAuthGuard, RolesGuard],
   exports: [
     PubSubUtility,
     TransactionUtility,
     AuditUtility,
+    EmailUtility,
+    FileStorageUtility,
     JwtAuthGuard,
     RolesGuard,
     TypeOrmModule,

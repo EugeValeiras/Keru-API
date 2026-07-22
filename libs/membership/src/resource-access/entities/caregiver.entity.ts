@@ -47,6 +47,10 @@ export class Caregiver {
   @Column({ type: 'varchar', length: 200 })
   displayName!: string;
 
+  /** Foto de perfil (UC-02/06). URL pública (S3 — floci en dev); opcional. */
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  photoUrl!: string | null;
+
   @Column({ type: 'jsonb', default: () => "'[]'" })
   specialties!: string[];
 

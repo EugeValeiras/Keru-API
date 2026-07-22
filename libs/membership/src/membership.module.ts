@@ -13,6 +13,7 @@ import { AuthController } from './auth.controller';
 import { CaregiverController } from './caregiver.controller';
 import { AdminCaregiverController } from './admin-caregiver.controller';
 import { InvitationController } from './invitation.controller';
+import { FilesController } from './files.controller';
 
 /**
  * Dominio Membership (constitution §3). Alta, login, vínculos, aprobación de cuidadores.
@@ -29,6 +30,7 @@ import { InvitationController } from './invitation.controller';
     CaregiverController,
     AdminCaregiverController,
     InvitationController,
+    FilesController,
   ],
   providers: [AccountAccess, CaregiverAccess, MembershipManager],
   exports: [AccountAccess, CaregiverAccess, MembershipManager],

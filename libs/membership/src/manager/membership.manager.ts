@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -12,6 +13,8 @@ import * as bcrypt from 'bcryptjs';
 import {
   Manager,
   AuditUtility,
+  EmailUtility,
+  FileStorageUtility,
   LinkRole,
   TransactionUtility,
   JwtPayload,
@@ -51,6 +54,8 @@ export interface RegisteredPatient {
 @Manager()
 @Injectable()
 export class MembershipManager {
+  private readonly logger = new Logger(MembershipManager.name);
+
   private static readonly SALT_ROUNDS = 10;
 
   constructor(
@@ -60,6 +65,8 @@ export class MembershipManager {
     private readonly jwt: JwtService,
     private readonly pubsub: PubSubUtility,
     private readonly audit: AuditUtility,
+    private readonly email: EmailUtility,
+    private readonly files: FileStorageUtility,
   ) {}
 
   // --- UC-04 · Autenticación ---
@@ -166,6 +173,7 @@ export class MembershipManager {
       {
         accountId,
         displayName: dto.displayName,
+        photoUrl: dto.photoUrl ?? null,
         specialties: dto.specialties,
         certifications: dto.certifications.map((c) => ({ ...c, verified: false })),
         availability: dto.availability,
@@ -307,6 +315,12 @@ export class MembershipManager {
     return this.requireCaregiver(caregiverId);
   }
 
+  // --- Foto de perfil (UC-01/UC-02): sube la imagen y devuelve la URL para photoUrl ---
+  async uploadImage(buffer: Buffer, mimeType: string): Promise<{ url: string }> {
+    const { url } = await this.files.putImage(buffer, mimeType);
+    return { url };
+  }
+
   private async requireCaregiver(id: string): Promise<Caregiver> {
     const caregiver = await this.caregiverAccess.findById(id);
     if (!caregiver) throw new NotFoundException('Cuidador no encontrado');
@@ -346,6 +360,20 @@ export class MembershipManager {
       target: { type: 'patient', id: patientId },
       metadata: { invitedEmail, role, expiresAt },
     });
+
+    // UC-03: el sistema envía el link por email al invitado. Mejor esfuerzo:
+    // un fallo de SES no invalida la invitación (la UI ofrece copiar/compartir).
+    void this.email
+      .sendInvitationEmail({
+        to: invitation.invitedEmail,
+        patientName: patient.fullName,
+        token: invitation.token,
+        expiresAt: invitation.expiresAt,
+      })
+      .catch((err) =>
+        this.logger.warn(`No se pudo enviar el email de invitación: ${(err as Error).message}`),
+      );
+
     return invitation;
   }
 

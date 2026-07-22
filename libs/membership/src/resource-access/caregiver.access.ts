@@ -14,6 +14,7 @@ import {
 export interface CreateCaregiverInput {
   accountId: string;
   displayName: string;
+  photoUrl?: string | null;
   specialties: string[];
   certifications: Certification[];
   availability: AvailabilitySlot[];
