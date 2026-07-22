@@ -1,8 +1,8 @@
 import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
 import { CareRecordManager } from './manager/care-record.manager';
-import { NotificationDto } from './manager/dto/responses.dto';
+import { MarkAllReadResponseDto, NotificationDto } from './manager/dto/responses.dto';
 
 /** UC-18 · Centro de notificaciones (campana). La campana existe siempre; el push es adicional. */
 @ApiTags('Notifications')
@@ -23,6 +23,17 @@ export class NotificationController {
   @ApiOperation({ summary: 'UC-18 · Contador de no leídas (badge de la campana)' })
   async unread(@CurrentAccount() account: AuthPrincipal): Promise<{ unread: number }> {
     return { unread: await this.careRecord.unreadCount(account.accountId) };
+  }
+
+  @Post('read-all')
+  @ApiOperation({
+    summary: 'UC-18 · Marcar todas las notificaciones como leídas',
+    description: 'Marca todas las no leídas del destinatario. Idempotente: repetir devuelve updated=0.',
+  })
+  @ApiCreatedResponse({ type: MarkAllReadResponseDto })
+  async readAll(@CurrentAccount() account: AuthPrincipal): Promise<MarkAllReadResponseDto> {
+    const updated = await this.careRecord.markAllNotificationsRead(account.accountId);
+    return { ok: true, updated };
   }
 
   @Post(':id/read')

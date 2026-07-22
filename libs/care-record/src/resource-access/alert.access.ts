@@ -62,4 +62,16 @@ export class AlertAccess {
   async markRead(id: string, accountId: string): Promise<void> {
     await this.notifications.update({ id, recipientAccountId: accountId }, { read: true });
   }
+
+  /**
+   * UC-18 · Marca TODAS las no leídas del destinatario como leídas y devuelve la cantidad
+   * afectada. Naturalmente idempotente (repetir devuelve 0): sin operationId (NFR-34, aclaración).
+   */
+  async markAllRead(recipientAccountId: string): Promise<number> {
+    const result = await this.notifications.update(
+      { recipientAccountId, read: false },
+      { read: true },
+    );
+    return result.affected ?? 0;
+  }
 }

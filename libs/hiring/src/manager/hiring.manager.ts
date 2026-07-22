@@ -223,6 +223,26 @@ export class HiringManager {
     return (await this.hiringAccess.findRequestById(request.id))!;
   }
 
+  // --- UC-09 A2 · Cancelación por el solicitante (solo pendiente; estado terminal) ---
+  async cancelRequest(requestId: string, requesterAccountId: string): Promise<HiringRequest> {
+    const request = await this.hiringAccess.findRequestById(requestId);
+    if (!request) throw new NotFoundException('Solicitud no encontrada');
+    if (request.requesterAccountId !== requesterAccountId) {
+      throw new ForbiddenException('Solo el solicitante puede cancelar la solicitud');
+    }
+    if (request.status !== 'pending') {
+      throw new BadRequestException('Solo se puede cancelar una solicitud pendiente');
+    }
+    // Transición con precondición (pending -> cancelled): naturalmente idempotente, sin operationId (NFR-34).
+    await this.hiringAccess.setRequestStatus(request.id, 'cancelled', new Date());
+    await this.audit.record({
+      action: 'hiring.request.cancelled',
+      actor: requesterAccountId,
+      target: { type: 'hiring_request', id: request.id },
+    });
+    return (await this.hiringAccess.findRequestById(request.id))!;
+  }
+
   // --- UC-09 (OQ-1) · Completar / marcar pagado -> finaliza el servicio ---
   async completeRequest(requestId: string, requesterAccountId: string): Promise<HiringRequest> {
     const request = await this.hiringAccess.findRequestById(requestId);

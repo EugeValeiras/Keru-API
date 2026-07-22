@@ -27,3 +27,12 @@ export class NotificationDto {
     return { id: n.id, type: n.type, patientId: n.patientId, title: n.title, body: n.body, read: n.read, createdAt: n.createdAt };
   }
 }
+
+/** UC-18 · Resultado de marcar todas como leídas. */
+export class MarkAllReadResponseDto {
+  @ApiProperty({ example: true })
+  ok!: true;
+
+  @ApiProperty({ example: 3, description: 'Cantidad de notificaciones que pasaron de no leída a leída (0 si se repite: idempotente).' })
+  updated!: number;
+}

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
@@ -26,6 +26,20 @@ export class CaregiverController {
   ): Promise<CaregiverResponseDto> {
     const caregiver = await this.membership.registerCaregiver(dto, account.accountId);
     return CaregiverResponseDto.from(caregiver);
+  }
+
+  @Put('me')
+  @ApiOperation({
+    summary: 'UC-02 A2 · Re-enviar postulación tras rechazo',
+    description:
+      'Corrige los datos y re-envía. Solo desde estado rejected: el perfil vuelve a pending, se limpia el motivo de rechazo y las certificaciones vuelven a "no verificada". Naturalmente idempotente.',
+  })
+  @ApiOkResponse({ type: CaregiverResponseDto })
+  async resubmit(
+    @Body() dto: RegisterCaregiverDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<CaregiverResponseDto> {
+    return CaregiverResponseDto.from(await this.membership.resubmitCaregiver(dto, account.accountId));
   }
 
   @Get('me')

@@ -83,7 +83,7 @@ export class RequestResponseDto {
       'Datos de contacto del solicitante. Para el cuidador solo con solicitud aceptada/en curso (UC-10).',
   })
   contactData?: Record<string, unknown>;
-  @ApiProperty({ enum: ['pending', 'accepted', 'declined', 'in-progress', 'finished', 'expired'] }) status!: string;
+  @ApiProperty({ enum: ['pending', 'accepted', 'declined', 'cancelled', 'in-progress', 'finished', 'expired'] }) status!: string;
   @ApiProperty({ description: 'Tarifa pinneada al solicitar (NFR-03/23)' }) ratePerHourSnapshot!: string;
 
   static from(r: HiringRequest, view: RequestViewOptions): RequestResponseDto {

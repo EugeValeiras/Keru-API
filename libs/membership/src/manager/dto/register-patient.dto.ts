@@ -13,7 +13,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WithOperationIdentity } from '@keru/core';
 
-class EmergencyContactDto {
+export class EmergencyContactDto {
   @ApiProperty({ example: 'María Díaz' })
   @IsString()
   @MinLength(1)

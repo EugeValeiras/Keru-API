@@ -131,6 +131,88 @@
         ]
       }
     },
+    "/api/v1/patients/{id}": {
+      "get": {
+        "description": "Ficha completa. Requiere vínculo con el paciente (cualquier rol); linkRole indica el rol de quien consulta.",
+        "operationId": "MembershipController_patientRecord_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientRecordDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-22 · Ver la ficha del paciente",
+        "tags": [
+          "Membership"
+        ]
+      },
+      "patch": {
+        "description": "Set parcial de la ficha (naturalmente idempotente, sin operationId). Solo vínculos consent-holder o manager; queda auditado (quién, cuándo, qué campos).",
+        "operationId": "MembershipController_updatePatient_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePatientDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientRecordDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-22 · Editar la ficha del paciente",
+        "tags": [
+          "Membership"
+        ]
+      }
+    },
     "/api/v1/caregivers": {
       "post": {
         "description": "Crea el perfil profesional en estado pending. No visible en el marketplace hasta UC-19.",
@@ -170,6 +252,42 @@
       }
     },
     "/api/v1/caregivers/me": {
+      "put": {
+        "description": "Corrige los datos y re-envía. Solo desde estado rejected: el perfil vuelve a pending, se limpia el motivo de rechazo y las certificaciones vuelven a \"no verificada\". Naturalmente idempotente.",
+        "operationId": "CaregiverController_resubmit_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterCaregiverDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-02 A2 · Re-enviar postulación tras rechazo",
+        "tags": [
+          "Caregivers"
+        ]
+      },
       "get": {
         "operationId": "CaregiverController_myProfile_v1",
         "parameters": [],
@@ -959,6 +1077,43 @@
         ]
       }
     },
+    "/api/v1/hiring-requests/{id}/cancel": {
+      "post": {
+        "description": "Cancela una solicitud mientras está pendiente; queda en estado terminal `cancelled` y el cuidador deja de verla como pendiente.",
+        "operationId": "MarketplaceController_cancel_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 A2 · Cancelar solicitud pendiente (solo el solicitante)",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
     "/api/v1/hiring-requests/{id}/complete": {
       "post": {
         "operationId": "MarketplaceController_complete_v1",
@@ -1488,6 +1643,34 @@
         ]
       }
     },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "description": "Marca todas las no leídas del destinatario. Idempotente: repetir devuelve updated=0.",
+        "operationId": "NotificationController_readAll_v1",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkAllReadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Marcar todas las notificaciones como leídas",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/v1/notifications/{id}/read": {
       "post": {
         "operationId": "NotificationController_markRead_v1",
@@ -1950,6 +2133,115 @@
           "fullName",
           "age"
         ]
+      },
+      "PatientRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Rosa Díaz"
+          },
+          "birthDate": {
+            "type": "string",
+            "example": "1948-03-10",
+            "description": "Fecha de nacimiento ISO (YYYY-MM-DD)."
+          },
+          "age": {
+            "type": "number",
+            "example": 78,
+            "description": "Edad derivada de la fecha de nacimiento."
+          },
+          "photoUrl": {
+            "type": "string",
+            "example": "https://cdn.keru.app/p/rosa.jpg"
+          },
+          "mainCondition": {
+            "type": "string",
+            "example": "Hipertensión"
+          },
+          "bloodGroup": {
+            "type": "string",
+            "example": "0+"
+          },
+          "allergies": {
+            "example": [
+              "Penicilina"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "emergencyContact": {
+            "type": "object",
+            "example": {
+              "name": "María Díaz",
+              "phone": "+54 11 5555-5555",
+              "relationship": "hija"
+            }
+          },
+          "linkRole": {
+            "type": "string",
+            "enum": [
+              "consent-holder",
+              "manager",
+              "viewer"
+            ],
+            "description": "Rol del vínculo de la cuenta que consulta."
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "birthDate",
+          "age",
+          "mainCondition",
+          "allergies",
+          "emergencyContact",
+          "linkRole"
+        ]
+      },
+      "UpdatePatientDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "example": "Rosa Díaz"
+          },
+          "birthDate": {
+            "type": "string",
+            "example": "1948-03-10",
+            "description": "Fecha de nacimiento ISO (YYYY-MM-DD). No puede ser futura."
+          },
+          "photoUrl": {
+            "type": "string",
+            "example": "https://cdn.keru.app/p/rosa.jpg"
+          },
+          "mainCondition": {
+            "type": "string",
+            "example": "Hipertensión"
+          },
+          "bloodGroup": {
+            "type": "string",
+            "example": "0+"
+          },
+          "allergies": {
+            "example": [
+              "Penicilina"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "emergencyContact": {
+            "$ref": "#/components/schemas/EmergencyContactDto"
+          }
+        }
       },
       "CertificationDto": {
         "type": "object",
@@ -2607,6 +2899,7 @@
               "pending",
               "accepted",
               "declined",
+              "cancelled",
               "in-progress",
               "finished",
               "expired"
@@ -2924,6 +3217,24 @@
           "body",
           "read",
           "createdAt"
+        ]
+      },
+      "MarkAllReadResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "updated": {
+            "type": "number",
+            "example": 3,
+            "description": "Cantidad de notificaciones que pasaron de no leída a leída (0 si se repite: idempotente)."
+          }
+        },
+        "required": [
+          "ok",
+          "updated"
         ]
       }
     }

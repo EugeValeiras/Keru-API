@@ -146,6 +146,10 @@ export class CareRecordManager {
   markNotificationRead(id: string, accountId: string) {
     return this.alertAccess.markRead(id, accountId);
   }
+  /** UC-18 · Marcar todas como leídas. Devuelve cuántas se marcaron (idempotente). */
+  markAllNotificationsRead(accountId: string): Promise<number> {
+    return this.alertAccess.markAllRead(accountId);
+  }
 
   // --- helpers ---
 

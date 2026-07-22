@@ -27,6 +27,7 @@ import { Patient } from '../resource-access/entities/patient.entity';
 import { Caregiver } from '../resource-access/entities/caregiver.entity';
 import { FamilyInvitation } from '../resource-access/entities/family-invitation.entity';
 import { RegisterPatientDto } from './dto/register-patient.dto';
+import { UpdatePatientDto } from './dto/update-patient.dto';
 import { RegisterCaregiverDto } from './dto/register-caregiver.dto';
 import { AuthResponseDto, LoginDto, SignupDto } from './dto/auth.dto';
 
@@ -44,6 +45,13 @@ export interface RegisteredPatient {
   patient: Patient;
   age: number;
   duplicateCandidateId?: string;
+}
+
+/** UC-22 · Ficha del paciente + rol del vínculo de la cuenta que consulta. */
+export interface PatientRecord {
+  patient: Patient;
+  age: number;
+  linkRole: LinkRole;
 }
 
 /**
@@ -160,6 +168,68 @@ export class MembershipManager {
     return patients.map((p) => ({ patient: p, age: this.deriveAge(p.birthDate) }));
   }
 
+  /** UC-22 · Ver la ficha del paciente. Cualquier rol de vínculo puede leer. */
+  async getPatientRecord(patientId: string, accountId: string): Promise<PatientRecord> {
+    const patient = await this.requirePatient(patientId);
+    const link = await this.requireLink(patientId, accountId);
+    return { patient, age: this.deriveAge(patient.birthDate), linkRole: link.role };
+  }
+
+  /** UC-22 · Editar la ficha. Solo `consent-holder` y `manager` (un `viewer` solo lee). */
+  async updatePatient(
+    patientId: string,
+    dto: UpdatePatientDto,
+    actorAccountId: string,
+  ): Promise<PatientRecord> {
+    await this.requirePatient(patientId);
+    const link = await this.requireLink(patientId, actorAccountId);
+    if (link.role !== 'consent-holder' && link.role !== 'manager') {
+      throw new ForbiddenException('Solo quien gestiona al paciente puede editar la ficha');
+    }
+    if (dto.birthDate !== undefined) this.assertBirthDateNotFuture(dto.birthDate);
+
+    // Set parcial: solo las claves presentes en el patch.
+    const patch = Object.fromEntries(
+      Object.entries({
+        fullName: dto.fullName,
+        birthDate: dto.birthDate,
+        photoUrl: dto.photoUrl,
+        mainCondition: dto.mainCondition,
+        bloodGroup: dto.bloodGroup,
+        allergies: dto.allergies,
+        emergencyContact: dto.emergencyContact,
+      }).filter(([, value]) => value !== undefined),
+    );
+    const fields = Object.keys(patch);
+
+    if (fields.length > 0) {
+      await this.accountAccess.updatePatient(patientId, patch);
+      // Trazabilidad (constitution §2.3): quién, cuándo y qué campos.
+      await this.audit.record({
+        action: 'membership.patient.updated',
+        actor: actorAccountId,
+        target: { type: 'patient', id: patientId },
+        metadata: { fields },
+      });
+    }
+
+    const updated = await this.requirePatient(patientId);
+    return { patient: updated, age: this.deriveAge(updated.birthDate), linkRole: link.role };
+  }
+
+  private async requirePatient(patientId: string): Promise<Patient> {
+    const patient = await this.accountAccess.findPatientById(patientId);
+    if (!patient) throw new NotFoundException('Paciente no encontrado');
+    return patient;
+  }
+
+  /** La cuenta debe tener vínculo con el paciente (constitution §2.4). */
+  private async requireLink(patientId: string, accountId: string) {
+    const link = await this.accountAccess.getLink(patientId, accountId);
+    if (!link) throw new ForbiddenException('Sin acceso a este paciente');
+    return link;
+  }
+
   // --- UC-02 · Registrar cuidador ---
 
   /** La cuenta (rol caregiver) crea su perfil profesional, que nace en estado `pending`. */
@@ -195,6 +265,38 @@ export class MembershipManager {
 
   getMyCaregiverProfile(accountId: string): Promise<Caregiver | null> {
     return this.caregiverAccess.findByAccountId(accountId);
+  }
+
+  /**
+   * UC-02 A2 · Re-postulación tras rechazo: corrige los datos y re-envía. El perfil vuelve a
+   * `pending`, se limpia el motivo de rechazo y las certificaciones vuelven a "no verificada".
+   * Solo desde el estado `rejected` (un perfil aprobado o desactivado no se re-envía por esta vía).
+   */
+  async resubmitCaregiver(dto: RegisterCaregiverDto, accountId: string): Promise<Caregiver> {
+    const existing = await this.caregiverAccess.findByAccountId(accountId);
+    if (!existing) throw new NotFoundException('No tenés un perfil de cuidador');
+    if (existing.status !== 'rejected') {
+      throw new BadRequestException('Solo un perfil rechazado puede re-enviarse');
+    }
+
+    await this.caregiverAccess.resubmitProfile(existing.id, {
+      displayName: dto.displayName,
+      photoUrl: dto.photoUrl ?? null,
+      specialties: dto.specialties,
+      certifications: dto.certifications.map((c) => ({ ...c, verified: false })),
+      availability: dto.availability,
+      rates: { ratePerHour: dto.rates.ratePerHour, currency: dto.rates.currency ?? 'ARS', description: dto.rates.description },
+      zone: dto.zone,
+      modalities: dto.modalities,
+    });
+
+    await this.audit.record({
+      action: 'membership.caregiver.resubmitted',
+      actor: accountId,
+      target: { type: 'caregiver', id: existing.id },
+    });
+
+    return (await this.caregiverAccess.findByAccountId(accountId))!;
   }
 
   // --- UC-19 · Aprobar / verificar cuidador (back-office) ---

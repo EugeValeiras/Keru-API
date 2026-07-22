@@ -1,10 +1,14 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-/** Ciclo de vida de la contratación (UC-09). `expired` = pendiente que venció (barrido, NFR-14). */
+/**
+ * Ciclo de vida de la contratación (UC-09). `expired` = pendiente que venció (barrido, NFR-14).
+ * `cancelled` = el solicitante la canceló mientras estaba pendiente (UC-09 A2; estado terminal).
+ */
 export type HiringRequestStatus =
   | 'pending'
   | 'accepted'
   | 'declined'
+  | 'cancelled'
   | 'in-progress'
   | 'finished'
   | 'expired';

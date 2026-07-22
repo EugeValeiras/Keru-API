@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -9,7 +9,8 @@ import {
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import { RegisterPatientDto } from './manager/dto/register-patient.dto';
-import { PatientResponseDto } from './manager/dto/patient-response.dto';
+import { UpdatePatientDto } from './manager/dto/update-patient.dto';
+import { PatientRecordDto, PatientResponseDto } from './manager/dto/patient-response.dto';
 
 /**
  * Puerta de entrada del dominio Membership (constitution §3.2: Client → Manager).
@@ -50,5 +51,38 @@ export class MembershipController {
   async myPatients(@CurrentAccount() account: AuthPrincipal): Promise<PatientResponseDto[]> {
     const patients = await this.membership.listMyPatients(account.accountId);
     return patients.map((p) => ({ id: p.patient.id, fullName: p.patient.fullName, age: p.age }));
+  }
+
+  /** UC-22 · Ver la ficha del paciente (cualquier rol de vínculo). */
+  @Get('patients/:id')
+  @ApiOperation({
+    summary: 'UC-22 · Ver la ficha del paciente',
+    description:
+      'Ficha completa. Requiere vínculo con el paciente (cualquier rol); linkRole indica el rol de quien consulta.',
+  })
+  @ApiOkResponse({ type: PatientRecordDto })
+  async patientRecord(
+    @Param('id') id: string,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<PatientRecordDto> {
+    const record = await this.membership.getPatientRecord(id, account.accountId);
+    return PatientRecordDto.from(record.patient, record.age, record.linkRole);
+  }
+
+  /** UC-22 · Editar la ficha del paciente (solo consent-holder o manager). */
+  @Patch('patients/:id')
+  @ApiOperation({
+    summary: 'UC-22 · Editar la ficha del paciente',
+    description:
+      'Set parcial de la ficha (naturalmente idempotente, sin operationId). Solo vínculos consent-holder o manager; queda auditado (quién, cuándo, qué campos).',
+  })
+  @ApiOkResponse({ type: PatientRecordDto })
+  async updatePatient(
+    @Param('id') id: string,
+    @Body() dto: UpdatePatientDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<PatientRecordDto> {
+    const record = await this.membership.updatePatient(id, dto, account.accountId);
+    return PatientRecordDto.from(record.patient, record.age, record.linkRole);
   }
 }

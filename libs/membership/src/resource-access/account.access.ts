@@ -137,6 +137,14 @@ export class AccountAccess {
     return this.patients.findOne({ where: { id } });
   }
 
+  /**
+   * UC-22 · Set parcial de la ficha del paciente. Naturalmente idempotente (repetir el mismo
+   * patch deja el mismo estado final), por eso no requiere operationId (NFR-34, aclaración).
+   */
+  async updatePatient(patientId: string, patch: Partial<CreatePatientInput>): Promise<void> {
+    await this.patients.update(patientId, patch);
+  }
+
   /** Busca un candidato duplicado del mismo humano (nombre + fecha de nacimiento). Residuo #21. */
   findDuplicateCandidate(fullName: string, birthDate: string): Promise<Patient | null> {
     return this.patients.findOne({ where: { fullName, birthDate } });

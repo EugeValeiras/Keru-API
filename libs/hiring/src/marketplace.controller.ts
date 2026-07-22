@@ -96,6 +96,22 @@ export class MarketplaceController {
     );
   }
 
+  @Post('hiring-requests/:id/cancel')
+  @ApiOperation({
+    summary: 'UC-09 A2 · Cancelar solicitud pendiente (solo el solicitante)',
+    description:
+      'Cancela una solicitud mientras está pendiente; queda en estado terminal `cancelled` y el cuidador deja de verla como pendiente.',
+  })
+  @ApiOkResponse({ type: RequestResponseDto })
+  async cancel(
+    @Param('id') id: string,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<RequestResponseDto> {
+    return RequestResponseDto.from(await this.hiring.cancelRequest(id, account.accountId), {
+      viewer: 'requester',
+    });
+  }
+
   @Post('hiring-requests/:id/complete')
   @ApiOperation({ summary: 'UC-09 · Finalizar / marcar como pagada (cierra el servicio)' })
   @ApiOkResponse({ type: RequestResponseDto })

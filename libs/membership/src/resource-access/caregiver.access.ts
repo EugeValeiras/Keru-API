@@ -23,6 +23,9 @@ export interface CreateCaregiverInput {
   modalities: string[];
 }
 
+/** UC-02 A2 · Datos corregidos de la re-postulación (el perfil ya existe; la cuenta no cambia). */
+export type ResubmitCaregiverInput = Omit<CreateCaregiverInput, 'accountId'>;
+
 /**
  * CaregiverAccess (constitution §3.1). Verbos atómicos sobre el perfil de cuidador: personas +
  * cuentas, perfiles, tarifas efectivo-fechadas, insignias + provenance, ciclo de aprobación,
@@ -104,5 +107,28 @@ export class CaregiverAccess {
   /** UC-19. Actualiza las insignias de verificación (los tres niveles son independientes). */
   async setBadges(id: string, badges: VerificationBadges): Promise<void> {
     await this.caregivers.update(id, { badges });
+  }
+
+  /**
+   * UC-02 A2 · Re-postulación tras rechazo: actualiza los datos corregidos, vuelve el perfil a
+   * `pending`, limpia el motivo de rechazo y la provenance de revisión, y las certificaciones
+   * vuelven a "no verificada". Transición con precondición (rejected -> pending, la valida el
+   * Manager): naturalmente idempotente, no requiere operationId (NFR-34, aclaración).
+   */
+  async resubmitProfile(caregiverId: string, input: ResubmitCaregiverInput): Promise<void> {
+    await this.caregivers.update(caregiverId, {
+      displayName: input.displayName,
+      photoUrl: input.photoUrl ?? null,
+      specialties: input.specialties,
+      certifications: input.certifications.map((c) => ({ ...c, verified: false })),
+      availability: input.availability,
+      rates: input.rates,
+      zone: input.zone,
+      modalities: input.modalities,
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      reviewedAt: null,
+    });
   }
 }
