@@ -2400,6 +2400,25 @@
           "displayName": {
             "type": "string"
           },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "certifications": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "rates": {
+            "type": "object"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -2439,6 +2458,9 @@
         "required": [
           "id",
           "displayName",
+          "certifications",
+          "availability",
+          "rates",
           "status",
           "specialties",
           "zone",
