@@ -88,6 +88,11 @@
       "^@keru/care-record(|/.*)$": "<rootDir>/libs/care-record/src/$1",
       "^@keru/care-consult(|/.*)$": "<rootDir>/libs/care-consult/src/$1",
       "^@keru/reputation(|/.*)$": "<rootDir>/libs/reputation/src/$1"
-    }
+    },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/.kanban/",
+      "/dist/"
+    ]
   }
 }
