@@ -15,6 +15,7 @@
     "openapi": "GENERATE_OPENAPI=true npm run start",
     "seed": "ts-node -r tsconfig-paths/register apps/keru-api/src/seed.ts",
     "lint": "eslint \"{apps,libs}/**/*.ts\" --fix",
+    "lint:ci": "eslint \"{apps,libs}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./apps/keru-api/test/jest-e2e.json",
     "infra:up": "docker compose up -d",
