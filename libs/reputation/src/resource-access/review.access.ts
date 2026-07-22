@@ -71,6 +71,32 @@ export class ReviewAccess {
     return result.raw as Review[];
   }
 
+  /** Agregados en bloque para N sujetos (UC-06: rating en cards sin N+1). Solo reveladas (NFR-22). */
+  async aggregateMany(
+    subjectType: ReviewSubject,
+    subjectIds: string[],
+  ): Promise<Record<string, Aggregate>> {
+    if (subjectIds.length === 0) {
+      return {};
+    }
+    const rows = await this.reviews
+      .createQueryBuilder('r')
+      .select('r.subjectId', 'subjectId')
+      .addSelect('AVG(r.rating)', 'average')
+      .addSelect('COUNT(*)', 'count')
+      .where('r.subjectType = :subjectType', { subjectType })
+      .andWhere('r.revealed = true')
+      .andWhere('r.subjectId IN (:...subjectIds)', { subjectIds })
+      .groupBy('r.subjectId')
+      .getRawMany<{ subjectId: string; average: string; count: string }>();
+    return Object.fromEntries(
+      rows.map((row) => [
+        row.subjectId,
+        { average: Math.round(Number(row.average) * 100) / 100, count: Number(row.count) },
+      ]),
+    );
+  }
+
   /** Agregado sobre reseñas VISIBLES únicamente (NFR-22). */
   async aggregate(subjectType: ReviewSubject, subjectId: string): Promise<Aggregate> {
     const visible = await this.listRevealedForSubject(subjectType, subjectId);

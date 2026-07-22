@@ -1,10 +1,18 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Manager, AuditUtility, TransactionUtility } from '@keru/core';
+import {
+  Manager,
+  AuditUtility,
+  TransactionUtility,
+  REPUTATION_READER,
+  RatingAggregate,
+  ReputationReader,
+} from '@keru/core';
 import { AccountAccess, CaregiverAccess, Caregiver } from '@keru/membership';
 import { MatchingEngine, SearchFilters } from '../engine/matching.engine';
 import { HiringAccess } from '../resource-access/hiring.access';
@@ -13,9 +21,16 @@ import { HiringRequest } from '../resource-access/entities/hiring-request.entity
 import { Assignment } from '../resource-access/entities/assignment.entity';
 import { CreateRequestDto } from './dto/create-request.dto';
 
-export interface CaregiverWithFavorite {
+export interface CaregiverCardData {
   caregiver: Caregiver;
   isFavorite: boolean;
+  rating: RatingAggregate;
+}
+
+export interface RequestWithNames {
+  request: HiringRequest;
+  patientName?: string;
+  caregiverName?: string;
 }
 
 export interface AcceptResult {
@@ -39,13 +54,22 @@ export class HiringManager {
     private readonly caregiverAccess: CaregiverAccess,
     private readonly accountAccess: AccountAccess,
     private readonly audit: AuditUtility,
+    @Inject(REPUTATION_READER) private readonly reputation: ReputationReader,
   ) {}
 
-  // --- UC-06 · Buscar ---
-  async search(filters: SearchFilters, accountId: string): Promise<CaregiverWithFavorite[]> {
+  // --- UC-06 · Buscar (cards con reputación visible desde el listado, criterio 3) ---
+  async search(filters: SearchFilters, accountId: string): Promise<CaregiverCardData[]> {
     const results = await this.matching.match(filters);
     const favIds = new Set(await this.favoriteAccess.listCaregiverIds(accountId));
-    return results.map((c) => ({ caregiver: c, isFavorite: favIds.has(c.id) }));
+    const ratings = await this.reputation.aggregatesFor(
+      'caregiver',
+      results.map((c) => c.id),
+    );
+    return results.map((c) => ({
+      caregiver: c,
+      isFavorite: favIds.has(c.id),
+      rating: ratings[c.id] ?? { average: 0, count: 0 },
+    }));
   }
 
   // --- UC-07 · Ver perfil (solo aprobados son visibles) ---
@@ -64,10 +88,20 @@ export class HiringManager {
   async removeFavorite(accountId: string, caregiverId: string): Promise<void> {
     await this.favoriteAccess.remove(accountId, caregiverId);
   }
-  async listFavorites(accountId: string): Promise<Caregiver[]> {
+  async listFavorites(accountId: string): Promise<CaregiverCardData[]> {
     const ids = await this.favoriteAccess.listCaregiverIds(accountId);
-    const caregivers = await Promise.all(ids.map((id) => this.caregiverAccess.findById(id)));
-    return caregivers.filter((c): c is Caregiver => c !== null);
+    const caregivers = (
+      await Promise.all(ids.map((id) => this.caregiverAccess.findById(id)))
+    ).filter((c): c is Caregiver => c !== null);
+    const ratings = await this.reputation.aggregatesFor(
+      'caregiver',
+      caregivers.map((c) => c.id),
+    );
+    return caregivers.map((c) => ({
+      caregiver: c,
+      isFavorite: true,
+      rating: ratings[c.id] ?? { average: 0, count: 0 },
+    }));
   }
 
   // --- UC-09 · Crear solicitud ---
@@ -105,14 +139,41 @@ export class HiringManager {
     return request;
   }
 
-  listMyRequests(requesterAccountId: string): Promise<HiringRequest[]> {
-    return this.hiringAccess.listRequestsForRequester(requesterAccountId);
+  async listMyRequests(requesterAccountId: string): Promise<RequestWithNames[]> {
+    const requests = await this.hiringAccess.listRequestsForRequester(requesterAccountId);
+    const names = await this.caregiverNames(requests.map((r) => r.caregiverId));
+    return requests.map((r) => ({ request: r, caregiverName: names.get(r.caregiverId) }));
   }
 
   // --- UC-10 · Aceptar / rechazar (cuidador) ---
-  async listRequestsForCaregiverAccount(caregiverAccountId: string): Promise<HiringRequest[]> {
+  async listRequestsForCaregiverAccount(caregiverAccountId: string): Promise<RequestWithNames[]> {
     const caregiver = await this.requireCaregiverByAccount(caregiverAccountId);
-    return this.hiringAccess.listRequestsForCaregiver(caregiver.id);
+    const requests = await this.hiringAccess.listRequestsForCaregiver(caregiver.id);
+    const names = await this.patientNames(requests.map((r) => r.patientId));
+    return requests.map((r) => ({ request: r, patientName: names.get(r.patientId) }));
+  }
+
+  /** Nombres de pacientes por id (réplica de solo-lectura de Membership), deduplicado. */
+  private async patientNames(patientIds: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(patientIds)];
+    const pairs = await Promise.all(
+      unique.map(
+        async (id) =>
+          [id, (await this.accountAccess.findPatientById(id))?.fullName ?? ''] as const,
+      ),
+    );
+    return new Map(pairs.filter(([, name]) => name !== ''));
+  }
+
+  /** Nombres de cuidadores por id (réplica de solo-lectura de Membership), deduplicado. */
+  private async caregiverNames(caregiverIds: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(caregiverIds)];
+    const pairs = await Promise.all(
+      unique.map(
+        async (id) => [id, (await this.caregiverAccess.findById(id))?.displayName ?? ''] as const,
+      ),
+    );
+    return new Map(pairs.filter(([, name]) => name !== ''));
   }
 
   async acceptRequest(requestId: string, caregiverAccountId: string): Promise<AcceptResult> {

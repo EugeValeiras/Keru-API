@@ -17,8 +17,8 @@ export class CaregiverRequestsController {
   @ApiOperation({ summary: 'UC-10 · Solicitudes recibidas' })
   @ApiOkResponse({ type: RequestResponseDto, isArray: true })
   async list(@CurrentAccount() account: AuthPrincipal): Promise<RequestResponseDto[]> {
-    return (await this.hiring.listRequestsForCaregiverAccount(account.accountId)).map(
-      RequestResponseDto.from,
+    return (await this.hiring.listRequestsForCaregiverAccount(account.accountId)).map((i) =>
+      RequestResponseDto.from(i.request, { viewer: 'caregiver', patientName: i.patientName }),
     );
   }
 
@@ -30,7 +30,7 @@ export class CaregiverRequestsController {
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<RequestResponseDto> {
     const result = await this.hiring.acceptRequest(id, account.accountId);
-    return RequestResponseDto.from(result.request);
+    return RequestResponseDto.from(result.request, { viewer: 'caregiver' });
   }
 
   @Post(':id/decline')
@@ -40,6 +40,8 @@ export class CaregiverRequestsController {
     @Param('id') id: string,
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<RequestResponseDto> {
-    return RequestResponseDto.from(await this.hiring.declineRequest(id, account.accountId));
+    return RequestResponseDto.from(await this.hiring.declineRequest(id, account.accountId), {
+      viewer: 'caregiver',
+    });
   }
 }

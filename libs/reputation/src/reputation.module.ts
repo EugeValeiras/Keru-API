@@ -15,6 +15,6 @@ import { ReviewController } from './review.controller';
   imports: [MembershipModule, HiringModule, TypeOrmModule.forFeature([Review])],
   controllers: [ReviewController],
   providers: [ReviewAccess, ReputationManager],
-  exports: [ReputationManager],
+  exports: [ReputationManager, ReviewAccess],
 })
 export class ReputationModule {}

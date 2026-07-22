@@ -37,7 +37,7 @@ export class MarketplaceController {
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<CaregiverCardDto[]> {
     const results = await this.hiring.search(filters, account.accountId);
-    return results.map((r) => CaregiverCardDto.from(r.caregiver, r.isFavorite));
+    return results.map((r) => CaregiverCardDto.from(r.caregiver, r.isFavorite, r.rating));
   }
 
   @Get('marketplace/caregivers/:id')
@@ -52,7 +52,7 @@ export class MarketplaceController {
   @ApiOkResponse({ type: CaregiverCardDto, isArray: true })
   async favorites(@CurrentAccount() account: AuthPrincipal): Promise<CaregiverCardDto[]> {
     const list = await this.hiring.listFavorites(account.accountId);
-    return list.map((c) => CaregiverCardDto.from(c, true));
+    return list.map((r) => CaregiverCardDto.from(r.caregiver, true, r.rating));
   }
 
   @Post('favorites/:caregiverId')
@@ -82,14 +82,18 @@ export class MarketplaceController {
     @Body() dto: CreateRequestDto,
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<RequestResponseDto> {
-    return RequestResponseDto.from(await this.hiring.createRequest(dto, account.accountId));
+    return RequestResponseDto.from(await this.hiring.createRequest(dto, account.accountId), {
+      viewer: 'requester',
+    });
   }
 
   @Get('hiring-requests')
   @ApiOperation({ summary: 'UC-09 · Mis solicitudes' })
   @ApiOkResponse({ type: RequestResponseDto, isArray: true })
   async myRequests(@CurrentAccount() account: AuthPrincipal): Promise<RequestResponseDto[]> {
-    return (await this.hiring.listMyRequests(account.accountId)).map(RequestResponseDto.from);
+    return (await this.hiring.listMyRequests(account.accountId)).map((i) =>
+      RequestResponseDto.from(i.request, { viewer: 'requester', caregiverName: i.caregiverName }),
+    );
   }
 
   @Post('hiring-requests/:id/complete')
@@ -99,7 +103,9 @@ export class MarketplaceController {
     @Param('id') id: string,
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<RequestResponseDto> {
-    return RequestResponseDto.from(await this.hiring.completeRequest(id, account.accountId));
+    return RequestResponseDto.from(await this.hiring.completeRequest(id, account.accountId), {
+      viewer: 'requester',
+    });
   }
 
   @Get('patients/:patientId/caregivers')

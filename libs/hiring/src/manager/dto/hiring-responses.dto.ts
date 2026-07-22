@@ -7,6 +7,7 @@ import { Assignment } from '../../resource-access/entities/assignment.entity';
 export class CaregiverCardDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() displayName!: string;
+  @ApiPropertyOptional({ description: 'Foto de perfil (UC-06)' }) photoUrl?: string;
   @ApiProperty({ type: [String] }) specialties!: string[];
   @ApiProperty() zone!: string;
   @ApiProperty({ type: [String] }) modalities!: string[];
@@ -14,11 +15,21 @@ export class CaregiverCardDto {
   @ApiProperty() currency!: string;
   @ApiProperty({ type: Object }) badges!: Caregiver['badges'];
   @ApiPropertyOptional({ description: 'true si está en los favoritos de la cuenta' }) isFavorite?: boolean;
+  @ApiPropertyOptional({
+    description: 'Promedio de reseñas reveladas, 0 si no tiene (UC-06 criterio 3)',
+  })
+  ratingAverage?: number;
+  @ApiPropertyOptional({ description: 'Cantidad de reseñas reveladas' }) ratingCount?: number;
 
-  static from(c: Caregiver, isFavorite?: boolean): CaregiverCardDto {
+  static from(
+    c: Caregiver,
+    isFavorite?: boolean,
+    rating?: { average: number; count: number },
+  ): CaregiverCardDto {
     return {
       id: c.id,
       displayName: c.displayName,
+      photoUrl: c.photoUrl ?? undefined,
       specialties: c.specialties,
       zone: c.zone,
       modalities: c.modalities,
@@ -26,6 +37,8 @@ export class CaregiverCardDto {
       currency: c.rates?.currency ?? 'ARS',
       badges: c.badges,
       isFavorite,
+      ratingAverage: rating?.average,
+      ratingCount: rating?.count,
     };
   }
 }
@@ -44,25 +57,49 @@ export class CaregiverProfileDto extends CaregiverCardDto {
   }
 }
 
+/** Vista sobre la solicitud: qué campos privados se exponen según quién mira (UC-10). */
+export interface RequestViewOptions {
+  viewer: 'requester' | 'caregiver';
+  patientName?: string;
+  caregiverName?: string;
+}
+
 /** Solicitud de contratación (UC-09/10). */
 export class RequestResponseDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ format: 'uuid' }) patientId!: string;
   @ApiProperty({ format: 'uuid' }) caregiverId!: string;
+  @ApiPropertyOptional({ description: 'Nombre del paciente (visible para el cuidador, UC-10)' })
+  patientName?: string;
+  @ApiPropertyOptional({ description: 'Nombre del cuidador (visible para el solicitante)' })
+  caregiverName?: string;
   @ApiProperty() modality!: string;
   @ApiProperty() startDate!: Date;
   @ApiProperty() endDate!: Date;
+  @ApiPropertyOptional() specialRequirements?: string;
+  @ApiPropertyOptional({
+    type: Object,
+    description:
+      'Datos de contacto del solicitante. Para el cuidador solo con solicitud aceptada/en curso (UC-10).',
+  })
+  contactData?: Record<string, unknown>;
   @ApiProperty({ enum: ['pending', 'accepted', 'declined', 'in-progress', 'finished', 'expired'] }) status!: string;
   @ApiProperty({ description: 'Tarifa pinneada al solicitar (NFR-03/23)' }) ratePerHourSnapshot!: string;
 
-  static from(r: HiringRequest): RequestResponseDto {
+  static from(r: HiringRequest, view: RequestViewOptions): RequestResponseDto {
+    const contactVisible =
+      view.viewer === 'requester' || r.status === 'accepted' || r.status === 'in-progress';
     return {
       id: r.id,
       patientId: r.patientId,
       caregiverId: r.caregiverId,
+      patientName: view.patientName,
+      caregiverName: view.caregiverName,
       modality: r.modality,
       startDate: r.startDate,
       endDate: r.endDate,
+      specialRequirements: r.specialRequirements ?? undefined,
+      contactData: contactVisible ? r.contactData : undefined,
       status: r.status,
       ratePerHourSnapshot: r.ratePerHourSnapshot,
     };

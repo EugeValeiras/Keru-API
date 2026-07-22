@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CoreModule } from '@keru/core';
 import { AuthorizationModule } from './authorization/authorization.module';
+import { ReputationReadModule } from './reputation-read/reputation-read.module';
 import { OpsModule } from './ops/ops.module';
 import { WorkerModule } from './worker/worker.module';
 import { MembershipModule } from '@keru/membership';
@@ -21,6 +22,7 @@ import { ReferenceModule } from './reference/reference.module';
     ScheduleModule.forRoot(),
     CoreModule,
     AuthorizationModule,
+    ReputationReadModule,
     MembershipModule,
     HiringModule,
     CareRecordModule,
