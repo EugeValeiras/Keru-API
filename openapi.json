@@ -1784,6 +1784,136 @@
         ]
       }
     },
+    "/api/v1/notifications/push/config": {
+      "get": {
+        "description": "Clave pública VAPID para suscribirse. enabled=false: el cliente no ofrece push, la campana sigue sola.",
+        "operationId": "NotificationController_pushConfig_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfigDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Config del canal push",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/push/subscriptions": {
+      "get": {
+        "operationId": "NotificationController_listPushSubscriptions_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PushSubscriptionDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Mis suscripciones push (por cuenta, revocables)",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "post": {
+        "description": "Idempotente por endpoint único: re-suscribir renueva claves/dueño, nunca duplica.",
+        "operationId": "NotificationController_subscribePush_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscribePushDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscriptionDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 flujo 1 · Suscribir este navegador al push",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "delete": {
+        "description": "A1: el usuario apaga el push; las alertas siguen en la campana. Idempotente: repetir devuelve removed=0.",
+        "operationId": "NotificationController_unsubscribePush_v1",
+        "parameters": [
+          {
+            "name": "endpoint",
+            "required": true,
+            "in": "query",
+            "description": "Endpoint (URL) de la suscripción a revocar.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnsubscribePushResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Revocar la suscripción push de un endpoint",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/v1/notifications/{id}/read": {
       "post": {
         "operationId": "NotificationController_markRead_v1",
@@ -1810,6 +1940,133 @@
         "summary": "UC-18 · Marcar notificación como leída",
         "tags": [
           "Notifications"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/quarantine": {
+      "get": {
+        "operationId": "QuarantineController_list_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuarantinedRecordDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-12 A3 · Items en cuarentena del paciente (NFR-30, visibles al círculo)",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/quarantine/{id}/approve": {
+      "post": {
+        "operationId": "QuarantineController_approve_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuarantinedRecordDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-12 A3 · Aprobar: entra al historial con su measuredAt original (NFR-36)",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/quarantine/{id}/discard": {
+      "post": {
+        "operationId": "QuarantineController_discard_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuarantinedRecordDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-12 A3 · Descartar: queda marcado con traza, nunca se borra",
+        "tags": [
+          "Care record"
         ]
       }
     },
@@ -3336,6 +3593,14 @@
           },
           "authorRole": {
             "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "quarantined"
+            ],
+            "description": "recorded: entró al historial. quarantined: llegada tardía no autorizada en cuarentena (NFR-30), pendiente de resolución del círculo — nunca se descarta en silencio."
           }
         },
         "required": [
@@ -3343,7 +3608,8 @@
           "type",
           "patientId",
           "measuredAt",
-          "authorRole"
+          "authorRole",
+          "status"
         ]
       },
       "RecordMedicationDto": {
@@ -3461,6 +3727,175 @@
         "required": [
           "ok",
           "updated"
+        ]
+      },
+      "PushConfigDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "false si el servidor no tiene claves VAPID: solo campana."
+          },
+          "publicKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Clave pública VAPID (applicationServerKey)."
+          }
+        },
+        "required": [
+          "enabled",
+          "publicKey"
+        ]
+      },
+      "PushSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "endpoint",
+          "createdAt"
+        ]
+      },
+      "PushKeysDto": {
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": "string",
+            "description": "Clave pública ECDH del navegador."
+          },
+          "auth": {
+            "type": "string",
+            "description": "Secreto de autenticación del navegador."
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ]
+      },
+      "SubscribePushDto": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "URL del push service del navegador."
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushKeysDto"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ]
+      },
+      "UnsubscribePushResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "removed": {
+            "type": "number",
+            "example": 1,
+            "description": "0 si el endpoint ya no estaba suscripto."
+          }
+        },
+        "required": [
+          "ok",
+          "removed"
+        ]
+      },
+      "QuarantinedRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "vitals",
+              "medication",
+              "note"
+            ]
+          },
+          "measuredAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Tiempo de medición original (NFR-36)."
+          },
+          "receivedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Tiempo de llegada."
+          },
+          "authorAccountId": {
+            "type": "string"
+          },
+          "authorRole": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "example": "no-authority-at-measurement"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "discarded"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "description": "Contenido del registro según type."
+          },
+          "resolvedByAccountId": {
+            "type": "object",
+            "nullable": true
+          },
+          "resolvedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "approvedRecordId": {
+            "type": "object",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Si se aprobó: registro promovido al historial."
+          }
+        },
+        "required": [
+          "id",
+          "patientId",
+          "type",
+          "measuredAt",
+          "receivedAt",
+          "authorAccountId",
+          "authorRole",
+          "reason",
+          "status",
+          "data"
         ]
       }
     }

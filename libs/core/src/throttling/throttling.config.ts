@@ -10,11 +10,17 @@ import { ThrottlerModuleOptions } from '@nestjs/throttler';
  */
 export const THROTTLE_TTL_MS = 60_000;
 
+/** Override por env con default estricto: el stack local E2E crea varias cuentas por corrida. */
+function limitFromEnv(name: string, strictDefault: number): number {
+  const raw = Number(process.env[name]);
+  return Number.isInteger(raw) && raw > 0 ? raw : strictDefault;
+}
+
 export const THROTTLE_LIMITS = {
   /** Default global: cualquier endpoint sin override ni @SkipThrottle. */
   default: 100,
   /** Login/signup (UC-04): superficie de fuerza bruta de credenciales. */
-  auth: 5,
+  auth: limitFromEnv('THROTTLE_AUTH_LIMIT', 5),
   /** Preview pública de invitaciones (UC-03): sin sesión; frena la adivinación de tokens. */
   invitationPreview: 30,
 } as const;

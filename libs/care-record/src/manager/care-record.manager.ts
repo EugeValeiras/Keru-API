@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -12,6 +13,9 @@ import { CareRecordAccess } from '../resource-access/care-record.access';
 import { RangeAccess } from '../resource-access/range.access';
 import { AlertAccess } from '../resource-access/alert.access';
 import { QuarantineAccess } from '../resource-access/quarantine.access';
+import { PushSubscriptionAccess } from '../resource-access/push-subscription.access';
+import { NotificationTransport, PushPayload } from '../resource-access/notification-transport';
+import { PushSubscription } from '../resource-access/entities/push-subscription.entity';
 import { AlertEngine } from '../engine/alert.engine';
 import { ClinicalRecord, ClinicalRecordType } from '../resource-access/entities/clinical-record.entity';
 import { QuarantinedRecord } from '../resource-access/entities/quarantined-record.entity';
@@ -22,6 +26,12 @@ export type RecordOutcome =
   | { outcome: 'recorded'; record: ClinicalRecord }
   | { outcome: 'quarantined'; quarantined: QuarantinedRecord };
 
+/** Push pendiente: se despacha DESPUÉS del commit — la campana es la garantía (§2.7). */
+interface PendingPush {
+  recipients: string[];
+  payload: PushPayload;
+}
+
 /**
  * CareRecordManager (constitution §3.1). Orquesta capturar → evaluar → persistir → notificar.
  * Permiso al momento de la medición (NFR-30); plausibilidad (A1); commit atómico registro +
@@ -31,6 +41,8 @@ export type RecordOutcome =
 @Manager()
 @Injectable()
 export class CareRecordManager {
+  private readonly logger = new Logger(CareRecordManager.name);
+
   constructor(
     private readonly tx: TransactionUtility,
     private readonly careRecordAccess: CareRecordAccess,
@@ -41,6 +53,8 @@ export class CareRecordManager {
     private readonly accountAccess: AccountAccess,
     private readonly permission: PermissionEngine,
     private readonly audit: AuditUtility,
+    private readonly pushSubscriptions: PushSubscriptionAccess,
+    private readonly pushTransport: NotificationTransport,
   ) {}
 
   // --- UC-12 · Registrar signos vitales ---
@@ -66,14 +80,15 @@ export class CareRecordManager {
       return this.quarantineAttempt(patientId, 'vitals', principal, measuredAt, { values: dto.values }, dto.operationId);
     }
 
-    return this.tx.run(async (em) => {
+    const pendingPush: PendingPush[] = [];
+    const result = await this.tx.run(async (em) => {
       const record = await this.careRecordAccess.record(
         { patientId, type: 'vitals', authorAccountId: principal.accountId, authorRole, measuredAt, data: { values: dto.values } },
         dto.operationId,
         em,
       );
 
-      await this.evaluateVitalsAndAlert(em, patientId, record);
+      await this.evaluateVitalsAndAlert(em, patientId, record, pendingPush);
 
       await this.audit.record({
         action: 'care-record.vitals.recorded',
@@ -84,6 +99,8 @@ export class CareRecordManager {
       });
       return { outcome: 'recorded', record } as const;
     });
+    await this.dispatchPush(pendingPush);
+    return result;
   }
 
   // --- UC-13 · Registrar medicación ---
@@ -117,21 +134,26 @@ export class CareRecordManager {
       return this.quarantineAttempt(patientId, 'note', principal, measuredAt, { text: dto.text }, dto.operationId);
     }
 
-    return this.tx.run(async (em) => {
+    const pendingPush: PendingPush[] = [];
+    const result = await this.tx.run(async (em) => {
       const record = await this.careRecordAccess.record(
         { patientId, type: 'note', authorAccountId: principal.accountId, authorRole, measuredAt, data: { text: dto.text } },
         dto.operationId,
         em,
       );
       // Una novedad notifica al círculo (UC-20 -> UC-18), como informativa.
-      await this.notifyCircle(em, patientId, principal.accountId, {
-        alertId: null,
-        type: 'note',
-        title: 'Nueva novedad',
-        body: dto.text.slice(0, 300),
-      });
+      pendingPush.push(
+        await this.notifyCircle(em, patientId, principal.accountId, {
+          alertId: null,
+          type: 'note',
+          title: 'Nueva novedad',
+          body: dto.text.slice(0, 300),
+        }),
+      );
       return { outcome: 'recorded', record } as const;
     });
+    await this.dispatchPush(pendingPush);
+    return result;
   }
 
   // --- UC-12 A3 · Cuarentena (NFR-30): el círculo ve y resuelve ---
@@ -152,7 +174,8 @@ export class CareRecordManager {
     if (item.status === 'approved') return item; // idempotente: re-aplicar no duplica
     if (item.status === 'discarded') throw new BadRequestException('El item ya fue descartado');
 
-    return this.tx.run(async (em) => {
+    const pendingPush: PendingPush[] = [];
+    const approved = await this.tx.run(async (em) => {
       const record = await this.careRecordAccess.record(
         {
           patientId,
@@ -165,7 +188,7 @@ export class CareRecordManager {
         item.createdByOperationId ?? `quarantine-approve-${item.id}`,
         em,
       );
-      if (item.type === 'vitals') await this.evaluateVitalsAndAlert(em, patientId, record);
+      if (item.type === 'vitals') await this.evaluateVitalsAndAlert(em, patientId, record, pendingPush);
 
       const resolvedAt = new Date();
       await this.quarantineAccess.resolve(
@@ -182,6 +205,8 @@ export class CareRecordManager {
       });
       return { ...item, status: 'approved', resolvedByAccountId: principal.accountId, resolvedAt, approvedRecordId: record.id } as QuarantinedRecord;
     });
+    await this.dispatchPush(pendingPush);
+    return approved;
   }
 
   /** Descarta un item en cuarentena: queda marcado, nunca se borra (trazabilidad). */
@@ -223,6 +248,28 @@ export class CareRecordManager {
     return this.alertAccess.markAllRead(accountId);
   }
 
+  // --- UC-18 · Web Push: suscripciones por cuenta, revocables; el push es adicional (§2.7) ---
+
+  /** Config pública para que el cliente decida si ofrecer push (clave VAPID). */
+  getPushConfig(): { enabled: boolean; publicKey: string | null } {
+    const publicKey = this.pushTransport.getPublicKey();
+    return { enabled: publicKey !== null, publicKey };
+  }
+
+  /** UC-18 flujo 1: el navegador aceptó el permiso y se suscribe. Idempotente por endpoint. */
+  subscribePush(accountId: string, input: { endpoint: string; p256dh: string; auth: string }): Promise<PushSubscription> {
+    return this.pushSubscriptions.upsertSubscription({ accountId, ...input });
+  }
+
+  listPushSubscriptions(accountId: string): Promise<PushSubscription[]> {
+    return this.pushSubscriptions.listForAccount(accountId);
+  }
+
+  /** Revoca la suscripción de un endpoint (A1: el usuario apaga el push; la campana sigue). */
+  unsubscribePush(accountId: string, endpoint: string): Promise<number> {
+    return this.pushSubscriptions.removeByEndpoint(accountId, endpoint);
+  }
+
   // --- helpers ---
 
   /** NFR-30: autoridad al tiempo de medición. Sin relación alguna: 403; llegada tardía: cuarentena. */
@@ -257,18 +304,21 @@ export class CareRecordManager {
     const existing = await this.quarantineAccess.findByOperationId(operationId);
     if (existing) return { outcome: 'quarantined', quarantined: existing };
 
-    return this.tx.run(async (em) => {
+    const pendingPush: PendingPush[] = [];
+    const result = await this.tx.run(async (em) => {
       const item = await this.quarantineAccess.quarantine(
         { patientId, type, authorAccountId: principal.accountId, authorRole: principal.role, measuredAt, data },
         operationId,
         em,
       );
-      await this.notifyCircle(em, patientId, principal.accountId, {
-        alertId: null,
-        type: 'quarantine',
-        title: 'Registro en cuarentena',
-        body: 'Llegó un registro tardío sin autorización vigente. Revisalo para aprobarlo o descartarlo.',
-      });
+      pendingPush.push(
+        await this.notifyCircle(em, patientId, principal.accountId, {
+          alertId: null,
+          type: 'quarantine',
+          title: 'Registro en cuarentena',
+          body: 'Llegó un registro tardío sin autorización vigente. Revisalo para aprobarlo o descartarlo.',
+        }),
+      );
       await this.audit.record({
         action: 'care-record.quarantined',
         actor: principal.accountId,
@@ -278,10 +328,17 @@ export class CareRecordManager {
       });
       return { outcome: 'quarantined', quarantined: item } as const;
     });
+    await this.dispatchPush(pendingPush);
+    return result;
   }
 
   /** Evalúa cada valor contra su rango y, si está fuera, alerta al círculo (atómico con el registro). */
-  private async evaluateVitalsAndAlert(em: EntityManager, patientId: string, record: ClinicalRecord): Promise<void> {
+  private async evaluateVitalsAndAlert(
+    em: EntityManager,
+    patientId: string,
+    record: ClinicalRecord,
+    pendingPush: PendingPush[],
+  ): Promise<void> {
     const values = (record.data as { values?: { metricKey: string; value: number }[] }).values ?? [];
     for (const v of values) {
       const range = this.rangeAccess.getApplicableRange(v.metricKey, patientId);
@@ -301,12 +358,14 @@ export class CareRecordManager {
         },
         em,
       );
-      await this.notifyCircle(em, patientId, record.authorAccountId, {
-        alertId: alert.id,
-        type: 'alert',
-        title: 'Alerta clínica',
-        body: evaluation.message,
-      });
+      pendingPush.push(
+        await this.notifyCircle(em, patientId, record.authorAccountId, {
+          alertId: alert.id,
+          type: 'alert',
+          title: 'Alerta clínica',
+          body: evaluation.message,
+        }),
+      );
     }
   }
 
@@ -324,19 +383,45 @@ export class CareRecordManager {
     return item;
   }
 
-  /** Notifica a TODOS los familiares vinculados (incluido quien registró, salvo que se excluya). */
+  /**
+   * Notifica a TODOS los familiares vinculados (incluido quien registró, salvo que se excluya).
+   * La campana se persiste acá, DENTRO de la transacción (garantía §2.7); devuelve el push
+   * pendiente para despachar recién después del commit — un push caído jamás toca la campana.
+   */
   private async notifyCircle(
     em: EntityManager,
     patientId: string,
     _actorId: string,
     payload: { alertId: string | null; type: string; title: string; body: string },
-  ): Promise<void> {
+  ): Promise<PendingPush> {
     const links = await this.accountAccess.listLinksForPatient(patientId);
     for (const link of links) {
       await this.alertAccess.createNotification(
         { recipientAccountId: link.accountId, patientId, ...payload },
         em,
       );
+    }
+    return {
+      recipients: links.map((l) => l.accountId),
+      payload: { type: payload.type, patientId, title: payload.title, body: payload.body },
+    };
+  }
+
+  /**
+   * UC-18 flujo 5: push best-effort a los suscriptos, después del commit. Cualquier falla se
+   * loguea y se traga — la campana ya registró todo (constitution §2.7, NFR-09). Endpoints
+   * muertos (404/410) se depuran acá.
+   */
+  private async dispatchPush(pending: PendingPush[]): Promise<void> {
+    for (const p of pending) {
+      try {
+        const subscriptions = await this.pushSubscriptions.listForAccounts(p.recipients);
+        if (subscriptions.length === 0) continue;
+        const stale = await this.pushTransport.deliver(subscriptions, p.payload);
+        await this.pushSubscriptions.removeStaleEndpoints(stale);
+      } catch (err) {
+        this.logger.warn(`Push no entregado (${(err as Error).message}); la campana ya registró la notificación`);
+      }
     }
   }
 
