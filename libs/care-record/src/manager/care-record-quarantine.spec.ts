@@ -92,6 +92,14 @@ function makeManager(overrides: Record<string, unknown> = {}) {
       hasLinkRole: jest.fn().mockResolvedValue(true),
     },
     audit: { record: jest.fn() },
+    pushSubscriptions: {
+      listForAccounts: jest.fn().mockResolvedValue([]),
+      removeStaleEndpoints: jest.fn().mockResolvedValue(undefined),
+    },
+    pushTransport: {
+      getPublicKey: jest.fn().mockReturnValue(null),
+      deliver: jest.fn().mockResolvedValue([]),
+    },
     ...overrides,
   };
   const manager = new CareRecordManager(
@@ -104,6 +112,8 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     deps.accountAccess as never,
     deps.permission as never,
     deps.audit as never,
+    deps.pushSubscriptions as never,
+    deps.pushTransport as never,
   );
   return { manager, deps };
 }

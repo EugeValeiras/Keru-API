@@ -1820,6 +1820,136 @@
         ]
       }
     },
+    "/api/v1/notifications/push/config": {
+      "get": {
+        "description": "Clave pública VAPID para suscribirse. enabled=false: el cliente no ofrece push, la campana sigue sola.",
+        "operationId": "NotificationController_pushConfig_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfigDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Config del canal push",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/push/subscriptions": {
+      "get": {
+        "operationId": "NotificationController_listPushSubscriptions_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PushSubscriptionDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Mis suscripciones push (por cuenta, revocables)",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "post": {
+        "description": "Idempotente por endpoint único: re-suscribir renueva claves/dueño, nunca duplica.",
+        "operationId": "NotificationController_subscribePush_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscribePushDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscriptionDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 flujo 1 · Suscribir este navegador al push",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "delete": {
+        "description": "A1: el usuario apaga el push; las alertas siguen en la campana. Idempotente: repetir devuelve removed=0.",
+        "operationId": "NotificationController_unsubscribePush_v1",
+        "parameters": [
+          {
+            "name": "endpoint",
+            "required": true,
+            "in": "query",
+            "description": "Endpoint (URL) de la suscripción a revocar.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnsubscribePushResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-18 · Revocar la suscripción push de un endpoint",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/v1/notifications/{id}/read": {
       "post": {
         "operationId": "NotificationController_markRead_v1",
@@ -3677,6 +3807,96 @@
         "required": [
           "ok",
           "updated"
+        ]
+      },
+      "PushConfigDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "false si el servidor no tiene claves VAPID: solo campana."
+          },
+          "publicKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Clave pública VAPID (applicationServerKey)."
+          }
+        },
+        "required": [
+          "enabled",
+          "publicKey"
+        ]
+      },
+      "PushSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "endpoint",
+          "createdAt"
+        ]
+      },
+      "PushKeysDto": {
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": "string",
+            "description": "Clave pública ECDH del navegador."
+          },
+          "auth": {
+            "type": "string",
+            "description": "Secreto de autenticación del navegador."
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ]
+      },
+      "SubscribePushDto": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "URL del push service del navegador."
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushKeysDto"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ]
+      },
+      "UnsubscribePushResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "removed": {
+            "type": "number",
+            "example": 1,
+            "description": "0 si el endpoint ya no estaba suscripto."
+          }
+        },
+        "required": [
+          "ok",
+          "removed"
         ]
       },
       "QuarantinedRecordDto": {

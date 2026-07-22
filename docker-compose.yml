@@ -82,8 +82,15 @@ services:
       S3_PUBLIC_URL: /media
       # Origen de la webapp servida por nginx (links de invitación en emails).
       APP_BASE_URL: http://localhost:8080
-      # Bypass de rate limiting para e2e en CI (nunca en despliegues reales).
-      THROTTLE_SKIP: '${THROTTLE_SKIP:-false}'
+      # Web Push VAPID (UC-18): par de DEV por defecto; en prod inyectar el propio.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-BB7iT-LtYzEkg9Il74b4bu-hKZVls6rbMKyfsoOlFHhRr1bSx9Jfnon5D4ypokrMudWNSO_u_pY9HSYvCp_kaIQ}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-HgvLYRBz-DgW3qFKFEf8Dd9suuQnKuRCz0qTLXaiTik}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:no-reply@keru.app}
+      # KER-14: en este stack local la suite E2E hace varios signups por corrida detrás del
+      # nginx (una sola IP); en prod real dejar el default estricto (5/min) sin esta env.
+      THROTTLE_AUTH_LIMIT: ${THROTTLE_AUTH_LIMIT:-50}
+      # Bypass total de rate limiting para e2e en CI (nunca en despliegues reales).
+      THROTTLE_SKIP: '${THROTTLE_SKIP:-false}' 
     depends_on:
       postgres:
         condition: service_healthy
