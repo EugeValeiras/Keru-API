@@ -4,6 +4,7 @@ import { MembershipModule } from '@keru/membership';
 import { ClinicalRecord } from './resource-access/entities/clinical-record.entity';
 import { Alert } from './resource-access/entities/alert.entity';
 import { Notification } from './resource-access/entities/notification.entity';
+import { NotificationDelivery } from './resource-access/entities/notification-delivery.entity';
 import { QuarantinedRecord } from './resource-access/entities/quarantined-record.entity';
 import { PushSubscription } from './resource-access/entities/push-subscription.entity';
 import { RangeVersion } from './resource-access/entities/range-version.entity';
@@ -26,7 +27,7 @@ import { QuarantineController } from './quarantine.controller';
  * Lee cuidadores/vínculos (Membership) y asignaciones (Hiring) para el permiso al momento de medición.
  */
 @Module({
-  imports: [MembershipModule, TypeOrmModule.forFeature([ClinicalRecord, Alert, Notification, QuarantinedRecord, PushSubscription, RangeVersion])],
+  imports: [MembershipModule, TypeOrmModule.forFeature([ClinicalRecord, Alert, Notification, NotificationDelivery, QuarantinedRecord, PushSubscription, RangeVersion])],
   controllers: [CareRecordController, NotificationController, QuarantineController],
   providers: [
     CareRecordAccess,

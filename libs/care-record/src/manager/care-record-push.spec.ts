@@ -70,9 +70,12 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     },
     alertAccess: {
       createAlert: jest.fn().mockResolvedValue({ id: 'alert-1' }),
-      createNotification: jest.fn(async () => {
+      createNotification: jest.fn(async (input: { recipientAccountId: string }) => {
         calls.push('bell');
+        return { id: `n-${input.recipientAccountId}` };
       }),
+      supersedePriorUnacked: jest.fn().mockResolvedValue(0),
+      recordDeliveryOutcome: jest.fn().mockResolvedValue(undefined),
     },
     alertEngine: {
       evaluateVital: jest.fn().mockReturnValue({ outOfRange: true, severity: 'high', message: 'heart-rate 180 fuera de rango' }),
@@ -97,7 +100,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
       getPublicKey: jest.fn().mockReturnValue('vapid-public'),
       deliver: jest.fn(async () => {
         calls.push('push');
-        return [] as string[];
+        return { attempted: true, delivered: ['https://push.test/sub-1'], failed: [], stale: [] };
       }),
     },
     ...overrides,
@@ -172,7 +175,12 @@ describe('UC-18 / §2.7 · la campana sigue registrando todo aunque el push fall
 
   it('Dado que el push service reporta suscripciones muertas (404/410), entonces se depuran', async () => {
     const { manager, deps } = makeManager();
-    (deps.pushTransport as { deliver: jest.Mock }).deliver.mockResolvedValue(['https://push.test/sub-1']);
+    (deps.pushTransport as { deliver: jest.Mock }).deliver.mockResolvedValue({
+      attempted: true,
+      delivered: [],
+      failed: ['https://push.test/sub-1'],
+      stale: ['https://push.test/sub-1'],
+    });
 
     await manager.recordVitals('pat-1', vitalsDto(), familiar);
 

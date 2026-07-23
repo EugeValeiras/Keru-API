@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MembershipModule } from '@keru/membership';
 import { HiringModule } from '@keru/hiring';
 import { ReputationModule } from '@keru/reputation';
+import { CareRecordModule } from '@keru/care-record';
 import { SchedulerService } from './scheduler.service';
 import { OpsController } from './ops.controller';
 import { AuditController } from './audit.controller';
@@ -10,7 +11,7 @@ import { OutboxOpsController } from './outbox.controller';
 
 /** Ops: barrido de vencidos, auditoría, dashboard y DLQ del outbox (KER-33). NFR-14/33/55. */
 @Module({
-  imports: [MembershipModule, HiringModule, ReputationModule],
+  imports: [MembershipModule, HiringModule, ReputationModule, CareRecordModule],
   providers: [SchedulerService],
   controllers: [OpsController, AuditController, DashboardController, OutboxOpsController],
 })

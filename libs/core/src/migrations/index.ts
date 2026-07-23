@@ -11,6 +11,7 @@ import { SeparateCompletionFromPaidDeclared1784786611330 } from './1784786611330
 import { RangeVersions1784788818727 } from './1784788818727-RangeVersions';
 import { NoShowReportedAt1784803218727 } from './1784803218727-NoShowReportedAt';
 import { OutboxRetryDlq1784810000000 } from './1784810000000-OutboxRetryDlq';
+import { AlertDeliveryOutcome1784820000000 } from './1784820000000-AlertDeliveryOutcome';
 
 export const ALL_MIGRATIONS: Array<new () => unknown> = [
   InitialSchema1784783279894,
@@ -18,4 +19,5 @@ export const ALL_MIGRATIONS: Array<new () => unknown> = [
   RangeVersions1784788818727,
   NoShowReportedAt1784803218727,
   OutboxRetryDlq1784810000000,
+  AlertDeliveryOutcome1784820000000,
 ];
