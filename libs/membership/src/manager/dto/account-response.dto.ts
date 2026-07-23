@@ -22,6 +22,12 @@ export class AccountResponseDto {
   @ApiProperty({ enum: ['patient', 'family', 'caregiver', 'admin'] })
   role!: AccountRole;
 
+  @ApiProperty({
+    example: false,
+    description: 'UC-04 A5 · Si el email de la cuenta está verificado (self-signup arranca en false).',
+  })
+  emailVerified!: boolean;
+
   static from(a: Account): AccountResponseDto {
     return {
       id: a.id,
@@ -29,6 +35,7 @@ export class AccountResponseDto {
       displayName: a.displayName,
       photoUrl: a.photoUrl,
       role: a.role,
+      emailVerified: a.emailVerified,
     };
   }
 }

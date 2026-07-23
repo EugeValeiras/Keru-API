@@ -7,8 +7,15 @@ import { PatientLink } from './entities/patient-link.entity';
 import { Account } from './entities/account.entity';
 import { FamilyInvitation, InvitationStatus } from './entities/family-invitation.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
+import { EmailVerificationToken } from './entities/email-verification-token.entity';
 
 export interface CreatePasswordResetTokenInput {
+  token: string;
+  accountId: string;
+  expiresAt: Date;
+}
+
+export interface CreateEmailVerificationTokenInput {
   token: string;
   accountId: string;
   expiresAt: Date;
@@ -61,6 +68,8 @@ export class AccountAccess {
     @InjectRepository(FamilyInvitation) private readonly invitations: Repository<FamilyInvitation>,
     @InjectRepository(PasswordResetToken)
     private readonly passwordResets: Repository<PasswordResetToken>,
+    @InjectRepository(EmailVerificationToken)
+    private readonly emailVerifications: Repository<EmailVerificationToken>,
   ) {}
 
   // --- Invitaciones familiares (UC-03) ---
@@ -120,6 +129,46 @@ export class AccountAccess {
   async updatePasswordHash(accountId: string, passwordHash: string, manager?: EntityManager): Promise<void> {
     const repo = manager ? manager.getRepository(Account) : this.accounts;
     await repo.update(accountId, { passwordHash });
+  }
+
+  // --- Verificación de email del self-signup (UC-04 A5) ---
+
+  // operation-identity: exempt — UC-04 A5: cada emisión/reenvío acuña deliberadamente un token
+  // nuevo (corta vida, un solo uso), mismo criterio que createPasswordResetToken. El at-most-once
+  // de la verificación lo garantiza el token de un solo uso al confirmar (precondición de estado),
+  // no la emisión (que además es siempre neutra por anti-enumeración en el reenvío).
+  createEmailVerificationToken(input: CreateEmailVerificationTokenInput): Promise<EmailVerificationToken> {
+    return this.emailVerifications.save(
+      this.emailVerifications.create({ ...input, status: 'pending', usedAt: null }),
+    );
+  }
+
+  findEmailVerificationByToken(token: string): Promise<EmailVerificationToken | null> {
+    return this.emailVerifications.findOne({ where: { token } });
+  }
+
+  /** Marca el token consumido. Transición con precondición: naturalmente idempotente (NFR-34). */
+  async markEmailVerificationUsed(id: string, usedAt: Date, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(EmailVerificationToken) : this.emailVerifications;
+    await repo.update(id, { status: 'used', usedAt });
+  }
+
+  /**
+   * UC-04 A5 · Al reenviar, invalida los tokens pendientes anteriores de la cuenta (solo el
+   * último link sirve). Naturalmente idempotente: dejar pendientes en 'used' es convergente.
+   */
+  async invalidatePendingEmailVerifications(accountId: string, usedAt: Date): Promise<void> {
+    await this.emailVerifications.update({ accountId, status: 'pending' }, { status: 'used', usedAt });
+  }
+
+  /**
+   * UC-04 A5 · Marca el email de la cuenta como verificado. Verbo dedicado (no afloja
+   * UpdateAccountInput, que nunca toca este flag). Naturalmente idempotente (repetir deja el
+   * mismo estado): no requiere operationId (NFR-34, ADR-0002).
+   */
+  async markEmailVerified(accountId: string, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(Account) : this.accounts;
+    await repo.update(accountId, { emailVerified: true });
   }
 
   /** Vínculo (cuenta↔paciente) si existe. */

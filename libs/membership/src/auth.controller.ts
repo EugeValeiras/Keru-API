@@ -5,6 +5,9 @@ import { AuthPrincipal, CurrentAccount, JwtAuthGuard, THROTTLE_LIMITS, THROTTLE_
 import { MembershipManager } from './manager/membership.manager';
 import {
   AuthResponseDto,
+  EmailVerificationConfirmDto,
+  EmailVerificationRequestDto,
+  EmailVerificationRequestResponseDto,
   LoginDto,
   LogoutDto,
   LogoutResponseDto,
@@ -78,6 +81,30 @@ export class AuthController {
   @ApiOkResponse({ type: AuthResponseDto })
   confirmPasswordReset(@Body() dto: PasswordResetConfirmDto): Promise<AuthResponseDto> {
     return this.membership.confirmPasswordReset(dto);
+  }
+
+  @Post('email-verification/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'UC-04 A5 · Pedir/reenviar el email de verificación: responde SIEMPRE 200 (anti-enumeración)',
+  })
+  @ApiOkResponse({ type: EmailVerificationRequestResponseDto })
+  async requestEmailVerification(
+    @Body() dto: EmailVerificationRequestDto,
+  ): Promise<EmailVerificationRequestResponseDto> {
+    await this.membership.requestEmailVerification(dto.email);
+    return { ok: true };
+  }
+
+  @Post('email-verification/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'UC-04 A5 · Confirmar verificación: marca el email verificado y auto-loguea (410 si el token es inválido/expirado/usado)',
+  })
+  @ApiOkResponse({ type: AuthResponseDto })
+  confirmEmailVerification(@Body() dto: EmailVerificationConfirmDto): Promise<AuthResponseDto> {
+    return this.membership.confirmEmailVerification(dto);
   }
 
   @Post('step-up')

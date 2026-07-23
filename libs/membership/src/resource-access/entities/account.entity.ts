@@ -27,6 +27,15 @@ export class Account {
   @Column({ type: 'varchar', length: 500, nullable: true })
   photoUrl!: string | null;
 
+  /**
+   * UC-04 A5 · Verificación de email del self-signup. El auto-registro arranca en `false` y sube
+   * a `true` al confirmar el link de verificación (token de un solo uso). Hasta entonces la cuenta
+   * opera con banner y no puede emitir invitaciones (gate mínimo). Default DB false para el alta;
+   * las cuentas previas al feature se backfillean a `true` en la migración.
+   */
+  @Column({ type: 'boolean', default: false })
+  emailVerified!: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 }
