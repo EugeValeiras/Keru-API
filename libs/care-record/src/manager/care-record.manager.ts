@@ -43,6 +43,13 @@ interface PendingPush {
   outcomeDetail?: string;
 }
 
+/** Evento `membership.session.revoked` (KER-38, NFR-41): logout revoca las push de la sesión. */
+export interface SessionRevokedEvent {
+  accountId: string;
+  /** Endpoint del device que cerró sesión; null/ausente = revocar todas las de la cuenta. */
+  pushEndpoint?: string | null;
+}
+
 /** Evento `hiring.assignment.closed` (KER-32): cierre de asignación activa (cancelación / no-show). */
 export interface AssignmentClosedEvent {
   requestId: string;
@@ -149,6 +156,22 @@ export class CareRecordManager implements OnApplicationBootstrap {
     await this.dispatchPush([
       { recipients: pushRecipients, payload: { type: 'hiring', patientId: event.patientId, title, body } },
     ]);
+  }
+
+  /**
+   * KER-38 · Higiene de push al cerrar sesión (NFR-41). Lo invoca el worker del outbox al
+   * despachar `membership.session.revoked` (Manager→Manager encolado). CareRecord es el dueño
+   * único de las push subscriptions: con endpoint revoca la del device; sin él, todas las de
+   * la cuenta. Idempotente: borrar lo ya borrado afecta 0.
+   */
+  async handleSessionRevoked(event: SessionRevokedEvent): Promise<number> {
+    const removed = event.pushEndpoint
+      ? await this.pushSubscriptions.removeByEndpoint(event.accountId, event.pushEndpoint)
+      : await this.pushSubscriptions.removeForAccount(event.accountId);
+    if (removed > 0) {
+      this.logger.log(`logout ${event.accountId}: ${removed} push subscription(s) revocada(s)`);
+    }
+    return removed;
   }
 
   /** Texto de la campana según la razón terminal del cierre (UC-09 A3/A4). */

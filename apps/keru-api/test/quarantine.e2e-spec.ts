@@ -10,6 +10,8 @@ import {
   registerPatient,
   signup,
   signupAdmin,
+  stepUp,
+  stepUpHeader,
   uid,
 } from './e2e-utils';
 
@@ -34,7 +36,7 @@ describe('E2E · Cuarentena del cuidador sin asignación vigente (NFR-30)', () =
     patientId = await registerPatient(app, familiar.token);
 
     const admin = await signupAdmin(app);
-    const approved = await createApprovedCaregiver(app, admin.token);
+    const approved = await createApprovedCaregiver(app, admin);
     cuidador = approved.account;
 
     // Asignación con ventana FUTURA (+2d..+9d): hoy el cuidador tiene relación pero no vigencia.
@@ -89,22 +91,33 @@ describe('E2E · Cuarentena del cuidador sin asignación vigente (NFR-30)', () =
     expect(list.body[0]).toMatchObject({ id: quarantinedId, status: 'pending', type: 'vitals' });
   });
 
-  it('la cuarentena la resuelve el círculo: el cuidador ni la lista ni la aprueba (403)', async () => {
+  it('la cuarentena la resuelve el círculo: el cuidador ni la lista ni la aprueba (403), aun con step-up', async () => {
     const list = await http(app)
       .get(`/api/v1/patients/${patientId}/quarantine`)
       .set(bearer(cuidador.token));
     expect(list.status).toBe(403);
 
+    // KER-38: el step-up re-confirma identidad, NO otorga permiso — sin vínculo sigue el 403.
     const approve = await http(app)
       .post(`/api/v1/patients/${patientId}/quarantine/${quarantinedId}/approve`)
-      .set(bearer(cuidador.token));
+      .set(bearer(cuidador.token))
+      .set(stepUpHeader(await stepUp(app, cuidador)));
     expect(approve.status).toBe(403);
   });
 
-  it('el consent-holder aprueba y el registro entra al historial con su measuredAt original', async () => {
+  it('liberar cuarentena sin step-up: 403 STEP_UP_REQUIRED aunque el vínculo alcance (NFR-33)', async () => {
     const approve = await http(app)
       .post(`/api/v1/patients/${patientId}/quarantine/${quarantinedId}/approve`)
       .set(bearer(familiar.token));
+    expect(approve.status).toBe(403);
+    expect(approve.body.code).toBe('STEP_UP_REQUIRED');
+  });
+
+  it('el consent-holder aprueba (con step-up) y el registro entra al historial con su measuredAt original', async () => {
+    const approve = await http(app)
+      .post(`/api/v1/patients/${patientId}/quarantine/${quarantinedId}/approve`)
+      .set(bearer(familiar.token))
+      .set(stepUpHeader(await stepUp(app, familiar)));
     expect(approve.status).toBe(200);
     expect(approve.body.status).toBe('approved');
     expect(approve.body.approvedRecordId).toBeDefined();

@@ -8,15 +8,18 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { randomBytes } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
+import { randomBytes, randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcryptjs';
 import {
   Manager,
   AuditUtility,
+  AuthPrincipal,
   EmailUtility,
   FileStorageUtility,
   LinkRole,
   TransactionUtility,
+  TokenRevocationUtility,
   JwtPayload,
   PubSubUtility,
   DomainEventType,
@@ -30,7 +33,7 @@ import { RegisterPatientDto } from './dto/register-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { RegisterCaregiverDto } from './dto/register-caregiver.dto';
 import { UpdateCaregiverProfileDto } from './dto/update-caregiver-profile.dto';
-import { AuthResponseDto, LoginDto, SignupDto } from './dto/auth.dto';
+import { AuthResponseDto, LoginDto, SignupDto, StepUpResponseDto } from './dto/auth.dto';
 
 const INVITATION_TTL_MINUTES = 30; // OQ-2
 
@@ -85,6 +88,8 @@ export class MembershipManager {
     private readonly audit: AuditUtility,
     private readonly email: EmailUtility,
     private readonly files: FileStorageUtility,
+    private readonly tokenRevocation: TokenRevocationUtility,
+    private readonly config: ConfigService,
   ) {}
 
   // --- UC-04 · Autenticación ---
@@ -123,9 +128,60 @@ export class MembershipManager {
     role: JwtPayload['role'],
     displayName: string,
   ): Promise<AuthResponseDto> {
-    const payload: JwtPayload = { sub: accountId, email, role };
+    // jti (NFR-41, KER-38): identidad del token — sin ella no hay revocación server-side.
+    const payload: JwtPayload = { sub: accountId, email, role, jti: randomUUID() };
     const accessToken = await this.jwt.signAsync(payload);
     return { accessToken, accountId, email, role, displayName };
+  }
+
+  /**
+   * UC-04 · Logout server-side (KER-38, NFR-41): deslista el jti hasta la expiración natural
+   * del token y revoca las push subscriptions de la sesión — la del device si el cliente la
+   * identifica, todas las de la cuenta si no (la higiene le gana a la comodidad). Las push
+   * viven en CareRecord (dueño único): viajan por outbox (Manager→Manager solo encolado).
+   */
+  async logout(principal: AuthPrincipal, pushEndpoint?: string): Promise<void> {
+    if (principal.jti) await this.tokenRevocation.revoke(principal.jti, principal.tokenExp);
+
+    const event = await this.tx.run(async (em) => {
+      await this.audit.record({
+        action: 'membership.session.logout',
+        actor: principal.accountId,
+        target: { type: 'account', id: principal.accountId },
+        metadata: { jti: principal.jti ?? null, pushEndpoint: pushEndpoint ?? null },
+        manager: em,
+      });
+      return this.pubsub.publish({
+        manager: em,
+        type: DomainEventType.SessionRevoked,
+        payload: { accountId: principal.accountId, pushEndpoint: pushEndpoint ?? null },
+      });
+    });
+    await this.pubsub.enqueue(event);
+  }
+
+  /**
+   * UC-04 A3 · Step-up (KER-38, NFR-33): re-confirmación de password que emite un token corto
+   * (claim `step_up`) exigido por StepUpGuard en las operaciones sensibles. Emisión auditada;
+   * cada uso lo audita el guard.
+   */
+  async stepUp(principal: AuthPrincipal, password: string): Promise<StepUpResponseDto> {
+    const account = await this.accountAccess.findAccountById(principal.accountId);
+    if (!account) throw new UnauthorizedException('Credenciales inválidas');
+    const ok = await bcrypt.compare(password, account.passwordHash);
+    if (!ok) throw new UnauthorizedException('Credenciales inválidas');
+
+    const expiresInSeconds = Number(this.config.get<string>('JWT_STEP_UP_TTL_SECONDS', '300'));
+    const jti = randomUUID();
+    const payload: JwtPayload = { sub: account.id, email: account.email, role: account.role, jti, step_up: true };
+    const stepUpToken = await this.jwt.signAsync(payload, { expiresIn: expiresInSeconds });
+    await this.audit.record({
+      action: 'auth.step-up.issued',
+      actor: account.id,
+      target: { type: 'account', id: account.id },
+      metadata: { jti, expiresInSeconds },
+    });
+    return { stepUpToken, expiresInSeconds };
   }
 
   /** UC-01 · Registrar paciente. */

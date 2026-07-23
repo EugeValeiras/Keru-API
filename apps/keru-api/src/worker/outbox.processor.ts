@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { DomainEventType, logJsonLine, OUTBOX_QUEUE, PubSubUtility } from '@keru/core';
 import { HiringManager } from '@keru/hiring';
-import { AssignmentClosedEvent, CareRecordManager } from '@keru/care-record';
+import { AssignmentClosedEvent, CareRecordManager, SessionRevokedEvent } from '@keru/care-record';
 
 /**
  * Worker del outbox (constitution §3.2). Consume los eventos encolados y los despacha "hacia abajo"
@@ -47,6 +47,15 @@ export class OutboxProcessor extends WorkerHost {
         await this.careRecord.handleAssignmentClosed(payload);
         this.logger.log(
           `campana ${event.type} (${payload.requestId}): razón ${payload.reason}, ${payload.recipientAccountIds?.length ?? 0} destinatario(s)`,
+        );
+        break;
+      }
+      case DomainEventType.SessionRevoked: {
+        // KER-38 (NFR-41): higiene de push al logout — CareRecord es el dueño de las suscripciones.
+        const payload = event.payload as unknown as SessionRevokedEvent;
+        const removed = await this.careRecord.handleSessionRevoked(payload);
+        this.logger.log(
+          `logout ${event.type} (${payload.accountId}): ${removed} push subscription(s) revocada(s)${payload.pushEndpoint ? ' (device)' : ' (toda la cuenta)'}`,
         );
         break;
       }

@@ -53,6 +53,12 @@ export class PushSubscriptionAccess {
     return result.affected ?? 0;
   }
 
+  /** KER-38 (NFR-41): logout sin device identificado revoca TODAS las de la cuenta. Idempotente. */
+  async removeForAccount(accountId: string): Promise<number> {
+    const result = await this.subscriptions.delete({ accountId });
+    return result.affected ?? 0;
+  }
+
   /** Depura endpoints muertos (404/410 del push service), sin importar el dueño. */
   async removeStaleEndpoints(endpoints: string[]): Promise<void> {
     if (endpoints.length === 0) return;

@@ -41,6 +41,8 @@ function makeManager(caregiver: Record<string, unknown> = approvedCaregiver()) {
     audit: { record: jest.fn() },
     email: {},
     files: {},
+    tokenRevocation: { revoke: jest.fn(), isRevoked: jest.fn().mockResolvedValue(false) },
+    config: { get: jest.fn((_k: string, d?: unknown) => d) },
   };
   const manager = new MembershipManager(
     deps.tx as never,
@@ -51,6 +53,8 @@ function makeManager(caregiver: Record<string, unknown> = approvedCaregiver()) {
     deps.audit as never,
     deps.email as never,
     deps.files as never,
+    deps.tokenRevocation as never,
+    deps.config as never,
   );
   return { manager, deps };
 }

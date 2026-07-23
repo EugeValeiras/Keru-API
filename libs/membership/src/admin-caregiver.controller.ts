@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
-import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard } from '@keru/core';
+import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard, STEP_UP_HEADER, StepUpGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import { CaregiverResponseDto } from './manager/dto/caregiver-response.dto';
 import { CaregiverDetailDto } from './manager/dto/caregiver-detail.dto';
@@ -54,7 +54,9 @@ export class AdminCaregiverController {
   }
 
   @Post(':id/approve')
-  @ApiOperation({ summary: 'UC-19 · Aprobar cuenta (la publica en el marketplace)' })
+  @UseGuards(StepUpGuard) // NFR-33 (KER-38): operación sensible — rol admin NO alcanza
+  @ApiHeader({ name: STEP_UP_HEADER, required: true, description: 'Token corto de re-confirmación (POST /auth/step-up)' })
+  @ApiOperation({ summary: 'UC-19 · Aprobar cuenta (la publica en el marketplace). Exige step-up (NFR-33)' })
   @ApiOkResponse({ type: CaregiverResponseDto })
   async approve(
     @Param('id') id: string,
@@ -64,7 +66,9 @@ export class AdminCaregiverController {
   }
 
   @Post(':id/reject')
-  @ApiOperation({ summary: 'UC-19 · Rechazar cuenta (con motivo)' })
+  @UseGuards(StepUpGuard) // NFR-33 (KER-38)
+  @ApiHeader({ name: STEP_UP_HEADER, required: true, description: 'Token corto de re-confirmación (POST /auth/step-up)' })
+  @ApiOperation({ summary: 'UC-19 · Rechazar cuenta (con motivo). Exige step-up (NFR-33)' })
   @ApiOkResponse({ type: CaregiverResponseDto })
   async reject(
     @Param('id') id: string,

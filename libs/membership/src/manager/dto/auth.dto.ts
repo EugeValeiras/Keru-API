@@ -1,5 +1,5 @@
-import { IsEmail, IsIn, IsString, MaxLength, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AccountRole } from '@keru/core';
 
 const SIGNUP_ROLES: AccountRole[] = ['patient', 'family', 'caregiver'];
@@ -37,6 +37,40 @@ export class LoginDto {
   @IsString()
   @MinLength(1)
   password!: string;
+}
+
+/** UC-04 · Logout server-side (KER-38, NFR-41). */
+export class LogoutDto {
+  @ApiPropertyOptional({
+    description:
+      'Endpoint Web Push del device que cierra sesión: se revoca esa suscripción. Sin él, se revocan todas las de la cuenta.',
+    maxLength: 1024,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
+  pushEndpoint?: string;
+}
+
+export class LogoutResponseDto {
+  @ApiProperty({ example: true })
+  ok!: boolean;
+}
+
+/** UC-04 A3 · Re-confirmación de identidad para operaciones sensibles (KER-38, NFR-33). */
+export class StepUpDto {
+  @ApiProperty({ example: 'S3gura!123', description: 'Password de la cuenta de la sesión' })
+  @IsString()
+  @MinLength(1)
+  password!: string;
+}
+
+export class StepUpResponseDto {
+  @ApiProperty({ description: 'Token corto con claim step_up: acompaña la operación sensible en x-step-up-token' })
+  stepUpToken!: string;
+
+  @ApiProperty({ example: 300 })
+  expiresInSeconds!: number;
 }
 
 /** Respuesta de auth: token + datos básicos de la cuenta. */

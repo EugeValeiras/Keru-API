@@ -82,6 +82,8 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     audit: { record: jest.fn() },
     email: {},
     files: {},
+    tokenRevocation: { revoke: jest.fn(), isRevoked: jest.fn().mockResolvedValue(false) },
+    config: { get: jest.fn((_k: string, d?: unknown) => d) },
     ...overrides,
   };
   const manager = new MembershipManager(
@@ -93,6 +95,8 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     deps.audit as never,
     deps.email as never,
     deps.files as never,
+    deps.tokenRevocation as never,
+    deps.config as never,
   );
   return { manager, deps };
 }

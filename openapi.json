@@ -65,6 +65,80 @@
         ]
       }
     },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-04 · Cerrar sesión: revoca el token (denylist jti) y las push de la sesión (NFR-41)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/step-up": {
+      "post": {
+        "operationId": "AuthController_stepUp_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-04 A3 · Re-confirmar password: emite token corto step_up para operaciones sensibles (NFR-33)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/patients": {
       "post": {
         "description": "Crea el perfil del paciente y vincula al creador como consent-holder. Idempotente por operationId (NFR-34).",
@@ -527,6 +601,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-step-up-token",
+            "in": "header",
+            "description": "Token corto de re-confirmación (POST /auth/step-up)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -546,7 +629,7 @@
             "bearer": []
           }
         ],
-        "summary": "UC-19 · Aprobar cuenta (la publica en el marketplace)",
+        "summary": "UC-19 · Aprobar cuenta (la publica en el marketplace). Exige step-up (NFR-33)",
         "tags": [
           "Back-office"
         ]
@@ -560,6 +643,15 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-step-up-token",
+            "in": "header",
+            "description": "Token corto de re-confirmación (POST /auth/step-up)",
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -592,7 +684,7 @@
             "bearer": []
           }
         ],
-        "summary": "UC-19 · Rechazar cuenta (con motivo)",
+        "summary": "UC-19 · Rechazar cuenta (con motivo). Exige step-up (NFR-33)",
         "tags": [
           "Back-office"
         ]
@@ -2355,6 +2447,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-step-up-token",
+            "in": "header",
+            "description": "Token corto de re-confirmación (POST /auth/step-up)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2374,7 +2475,7 @@
             "bearer": []
           }
         ],
-        "summary": "UC-12 A3 · Aprobar: entra al historial con su measuredAt original (NFR-36)",
+        "summary": "UC-12 A3 · Aprobar: entra al historial con su measuredAt original (NFR-36). Exige step-up (NFR-33)",
         "tags": [
           "Care record"
         ]
@@ -2838,6 +2939,58 @@
         "required": [
           "email",
           "password"
+        ]
+      },
+      "LogoutDto": {
+        "type": "object",
+        "properties": {
+          "pushEndpoint": {
+            "type": "string",
+            "description": "Endpoint Web Push del device que cierra sesión: se revoca esa suscripción. Sin él, se revocan todas las de la cuenta.",
+            "maxLength": 1024
+          }
+        }
+      },
+      "LogoutResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "StepUpDto": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "example": "S3gura!123",
+            "description": "Password de la cuenta de la sesión"
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
+      "StepUpResponseDto": {
+        "type": "object",
+        "properties": {
+          "stepUpToken": {
+            "type": "string",
+            "description": "Token corto con claim step_up: acompaña la operación sensible en x-step-up-token"
+          },
+          "expiresInSeconds": {
+            "type": "number",
+            "example": 300
+          }
+        },
+        "required": [
+          "stepUpToken",
+          "expiresInSeconds"
         ]
       },
       "EmergencyContactDto": {
