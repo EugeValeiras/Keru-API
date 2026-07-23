@@ -16,6 +16,9 @@ export * from './outbox/pubsub.util';
 // Transaction
 export * from './transaction/transaction.util';
 
+// Health (KER-33: probes DB/Redis/lag del outbox)
+export * from './health/health.util';
+
 // Audit
 export * from './audit/audit-log.entity';
 export * from './audit/audit.util';

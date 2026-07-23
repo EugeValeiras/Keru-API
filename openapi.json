@@ -2504,6 +2504,24 @@
         ]
       }
     },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_check_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Todos los checks arriba"
+          },
+          "503": {
+            "description": "Algún check caído o outbox con lag (detalle en el body)"
+          }
+        },
+        "summary": "KER-33 · Salud de la API: DB, Redis y lag del outbox (healthcheck del contenedor)",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
     "/api/v1/admin/ops/sweep": {
       "post": {
         "operationId": "OpsController_sweep_v1",
@@ -2592,6 +2610,70 @@
           }
         ],
         "summary": "Métricas operativas (cuidadores por estado, contrataciones, asignaciones activas)",
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/v1/admin/ops/outbox/dead-letter": {
+      "get": {
+        "operationId": "OutboxOpsController_list_v1",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Máximo de filas (default 50)",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eventos dead-lettered, más recientes primero (attempts + lastError incluidos)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "KER-33 · Listar la dead-letter del outbox (eventos que agotaron reintentos)",
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/v1/admin/ops/outbox/dead-letter/{id}/retry": {
+      "post": {
+        "description": "Verbo naturalmente idempotente (NFR-34): el jobId dedupea en la cola y el worker no reprocesa eventos ya despachados (flag dispatched); reintentar dos veces no duplica efectos.",
+        "operationId": "OutboxOpsController_retry_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "id del evento en outbox_event",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Evento reencolado"
+          },
+          "404": {
+            "description": "No existe o no está dead-lettered"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "KER-33 · Reencolar un evento dead-lettered con reintentos frescos",
         "tags": [
           "Ops"
         ]
