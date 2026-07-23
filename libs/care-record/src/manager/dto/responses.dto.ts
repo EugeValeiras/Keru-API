@@ -17,13 +17,36 @@ export class RecordResponseDto {
   })
   status!: 'recorded' | 'quarantined';
 
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'uuid',
+    description: 'NFR-38: si es una corrección, la versión (registro) que reemplaza — el original queda superseded.',
+  })
+  supersedesRecordId?: string | null;
+
   static from(outcome: RecordOutcome): RecordResponseDto {
     if (outcome.outcome === 'recorded') {
       const r = outcome.record;
-      return { id: r.id, type: r.type, patientId: r.patientId, measuredAt: r.measuredAt, authorRole: r.authorRole, status: 'recorded' };
+      return {
+        id: r.id,
+        type: r.type,
+        patientId: r.patientId,
+        measuredAt: r.measuredAt,
+        authorRole: r.authorRole,
+        status: 'recorded',
+        supersedesRecordId: r.supersedesRecordId ?? null,
+      };
     }
     const q = outcome.quarantined;
-    return { id: q.id, type: q.type, patientId: q.patientId, measuredAt: q.measuredAt, authorRole: q.authorRole, status: 'quarantined' };
+    return {
+      id: q.id,
+      type: q.type,
+      patientId: q.patientId,
+      measuredAt: q.measuredAt,
+      authorRole: q.authorRole,
+      status: 'quarantined',
+      supersedesRecordId: q.supersedesRecordId ?? null,
+    };
   }
 }
 
@@ -44,6 +67,12 @@ export class QuarantinedRecordDto {
   @ApiPropertyOptional({ nullable: true, format: 'uuid', description: 'Si se aprobó: registro promovido al historial.' })
   approvedRecordId!: string | null;
 
+  @ApiPropertyOptional({ nullable: true, format: 'uuid', description: 'NFR-38: si el intento era una corrección, el registro que corrige.' })
+  supersedesRecordId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'NFR-38: razón de la corrección en cuarentena.' })
+  correctionReason!: string | null;
+
   static from(q: QuarantinedRecord): QuarantinedRecordDto {
     return {
       id: q.id,
@@ -59,6 +88,8 @@ export class QuarantinedRecordDto {
       resolvedByAccountId: q.resolvedByAccountId,
       resolvedAt: q.resolvedAt,
       approvedRecordId: q.approvedRecordId,
+      supersedesRecordId: q.supersedesRecordId,
+      correctionReason: q.correctionReason,
     };
   }
 }

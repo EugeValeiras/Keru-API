@@ -55,6 +55,14 @@ export class Alert {
   @Column({ type: 'uuid', nullable: true })
   supersededByAlertId!: string | null;
 
+  /** NFR-38: resuelta-por-corrección — el registro que la disparó fue corregido. NULL = abierta. */
+  @Column({ type: 'timestamptz', nullable: true })
+  resolvedAt!: Date | null;
+
+  /** Traza NFR-38: la corrección (registro nuevo) que la resolvió. */
+  @Column({ type: 'uuid', nullable: true })
+  resolvedByRecordId!: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 }

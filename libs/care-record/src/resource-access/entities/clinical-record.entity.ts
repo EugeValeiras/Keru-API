@@ -37,6 +37,22 @@ export class ClinicalRecord {
   @Column({ type: 'varchar', length: 128, nullable: true, unique: true })
   createdByOperationId!: string | null;
 
+  /** NFR-38: si este registro ES una corrección, la versión (registro) que reemplaza. */
+  @Column({ type: 'uuid', nullable: true })
+  supersedesRecordId!: string | null;
+
+  /** NFR-38: razón de la corrección (obligatoria al corregir; NULL en un alta normal). */
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  correctionReason!: string | null;
+
+  /** NFR-38: momento en que una corrección reemplazó a este registro. NULL = versión vigente. */
+  @Column({ type: 'timestamptz', nullable: true })
+  supersededAt!: Date | null;
+
+  /** Traza NFR-38: qué registro (corrección) lo reemplazó. */
+  @Column({ type: 'uuid', nullable: true })
+  supersededByRecordId!: string | null;
+
   /** Tiempo de llegada/registro. */
   @CreateDateColumn({ type: 'timestamptz' })
   recordedAt!: Date;
