@@ -60,6 +60,7 @@ function makeManager(currentRate: number) {
       findPatientById: jest.fn().mockResolvedValue({ id: 'pat-1', fullName: 'Rosa Díaz' }),
     },
     audit: { record: jest.fn() },
+    pubsub: { publish: jest.fn().mockResolvedValue({ id: 'evt-1' }), enqueue: jest.fn() },
     reputation: { aggregatesFor: jest.fn().mockResolvedValue({}) },
   };
   const manager = new HiringManager(
@@ -70,6 +71,7 @@ function makeManager(currentRate: number) {
     deps.caregiverAccess as never,
     deps.accountAccess as never,
     deps.audit as never,
+    deps.pubsub as never,
     deps.reputation as never,
   );
   return { manager, deps };

@@ -56,6 +56,26 @@ describe('NFR-20 · elegibilidad de reseña basada en completado, no en el pago'
     expect((deps.reviewAccess as ReviewAccessMock).create).not.toHaveBeenCalled();
   });
 
+  it('Dado un cierre por cancelación (KER-32), cuando el solicitante reseña, entonces 400 — solo la razón terminal `completed` habilita', async () => {
+    const { manager, deps } = makeManager();
+    (deps.hiringAccess as HiringAccessMock).findRequestById.mockResolvedValue(
+      hiringRequest({ status: 'completed', terminalReason: 'cancelled-by-caregiver' }),
+    );
+
+    await expect(manager.reviewCaregiver('req-1', 'acc-fam', 5)).rejects.toThrow(BadRequestException);
+    expect((deps.reviewAccess as ReviewAccessMock).create).not.toHaveBeenCalled();
+  });
+
+  it('Dado un cierre por no-show (KER-32), cuando el cuidador reseña al paciente, entonces 400', async () => {
+    const { manager, deps } = makeManager();
+    (deps.hiringAccess as HiringAccessMock).findRequestById.mockResolvedValue(
+      hiringRequest({ status: 'completed', terminalReason: 'no-show' }),
+    );
+
+    await expect(manager.reviewPatient('req-1', 'acc-cg', 4)).rejects.toThrow(BadRequestException);
+    expect((deps.reviewAccess as ReviewAccessMock).create).not.toHaveBeenCalled();
+  });
+
   it('Dado un servicio completado SIN pago declarado, cuando el solicitante reseña, entonces la reseña se acepta', async () => {
     const { manager, deps } = makeManager();
 

@@ -12,14 +12,21 @@ import {
   REPUTATION_READER,
   RatingAggregate,
   ReputationReader,
+  PubSubUtility,
+  DomainEventType,
 } from '@keru/core';
 import { AccountAccess, CaregiverAccess, Caregiver } from '@keru/membership';
 import { MatchingEngine, SearchFilters } from '../engine/matching.engine';
 import { HiringAccess } from '../resource-access/hiring.access';
 import { FavoriteAccess } from '../resource-access/favorite.access';
-import { HiringRequest } from '../resource-access/entities/hiring-request.entity';
+import {
+  HiringRequest,
+  HiringTerminalReason,
+} from '../resource-access/entities/hiring-request.entity';
 import { Assignment } from '../resource-access/entities/assignment.entity';
 import { CreateRequestDto } from './dto/create-request.dto';
+import { CancelActiveDto, RecordNoShowDto } from './dto/cancel-active.dto';
+import { RehireRequestDto } from './dto/rehire-request.dto';
 
 export interface CaregiverCardData {
   caregiver: Caregiver;
@@ -38,6 +45,23 @@ export interface AcceptResult {
   assignment: Assignment;
 }
 
+export interface RehireResult {
+  request: HiringRequest;
+  /** Tarifa pinneada de la última contratación previa con ese cuidador (diff NFR-23). */
+  previousRatePerHour: string;
+}
+
+/** Parámetros internos del cierre de asignación activa (UC-09 A3/A4, KER-32). */
+interface CloseActiveOptions {
+  actorAccountId: string;
+  reason: HiringTerminalReason;
+  operationId: string;
+  note: string | null;
+  noShowReportedAt?: Date;
+  /** Cuentas a notificar por campana (la contraparte; ambas si cancela el admin). */
+  recipientAccountIds: string[];
+}
+
 /**
  * HiringManager (constitution §3.1). Orquesta el marketplace: búsqueda (MatchingEngine),
  * solicitudes por paciente con términos pinneados, aceptación con revalidación, y la máquina de
@@ -54,6 +78,7 @@ export class HiringManager {
     private readonly caregiverAccess: CaregiverAccess,
     private readonly accountAccess: AccountAccess,
     private readonly audit: AuditUtility,
+    private readonly pubsub: PubSubUtility,
     @Inject(REPUTATION_READER) private readonly reputation: ReputationReader,
   ) {}
 
@@ -106,6 +131,42 @@ export class HiringManager {
 
   // --- UC-09 · Crear solicitud ---
   async createRequest(dto: CreateRequestDto, requesterAccountId: string): Promise<HiringRequest> {
+    return this.submitNewRequest(dto, requesterAccountId, 'hiring.request.created', {});
+  }
+
+  // --- UC-16 A2 · Rehire urgente (KER-32, NFR-15/23) ---
+  /**
+   * Re-solicitud dirigida a un cuidador que ya atendió al paciente, sin re-búsqueda. Re-pinnea
+   * la tarifa vigente (NFR-03/21) y devuelve la pinneada de la última contratación previa para
+   * el diff a la vista (NFR-23). Después sigue el ciclo normal (UC-10: el cuidador acepta).
+   */
+  async createRehireRequest(dto: RehireRequestDto, requesterAccountId: string): Promise<RehireResult> {
+    await this.assertLinked(dto.patientId, requesterAccountId);
+    // Precondición del rehire: asignación previa (vigente o histórica) con ese paciente.
+    const assignments = await this.hiringAccess.listAssignmentsForPatient(dto.patientId);
+    const prior = assignments.filter((a) => a.caregiverId === dto.caregiverId);
+    if (prior.length === 0) {
+      throw new BadRequestException(
+        'El rehire urgente solo aplica a un cuidador que ya atendió al paciente (UC-16 A2)',
+      );
+    }
+    // Tarifa anterior: la pinneada en la solicitud de la asignación previa más reciente.
+    const lastRequestId = prior.find((a) => a.requestId)?.requestId ?? null;
+    const previous = lastRequestId ? await this.hiringAccess.findRequestById(lastRequestId) : null;
+
+    const request = await this.submitNewRequest(dto, requesterAccountId, 'hiring.request.rehire-created', {
+      previousRatePerHour: previous?.ratePerHourSnapshot ?? null,
+    });
+    return { request, previousRatePerHour: previous?.ratePerHourSnapshot ?? request.ratePerHourSnapshot };
+  }
+
+  /** Alta de solicitud (UC-09 y rehire UC-16 A2): valida, pinnea términos vigentes y audita. */
+  private async submitNewRequest(
+    dto: CreateRequestDto,
+    requesterAccountId: string,
+    auditAction: string,
+    extraMetadata: Record<string, unknown>,
+  ): Promise<HiringRequest> {
     await this.assertLinked(dto.patientId, requesterAccountId);
 
     const caregiver = await this.caregiverAccess.findById(dto.caregiverId);
@@ -131,10 +192,10 @@ export class HiringManager {
     );
 
     await this.audit.record({
-      action: 'hiring.request.created',
+      action: auditAction,
       actor: requesterAccountId,
       target: { type: 'hiring_request', id: request.id },
-      metadata: { patientId: dto.patientId, caregiverId: dto.caregiverId },
+      metadata: { patientId: dto.patientId, caregiverId: dto.caregiverId, ...extraMetadata },
     });
     return request;
   }
@@ -240,6 +301,155 @@ export class HiringManager {
       actor: requesterAccountId,
       target: { type: 'hiring_request', id: request.id },
     });
+    return (await this.hiringAccess.findRequestById(request.id))!;
+  }
+
+  // --- UC-09 A3 · Cancelación de la asignación ACTIVA por actor (KER-32, NFR-15, stressor #27) ---
+
+  /** El solicitante cancela la asignación activa; se notifica al cuidador por campana. */
+  async cancelActiveByRequester(
+    requestId: string,
+    requesterAccountId: string,
+    dto: CancelActiveDto,
+  ): Promise<HiringRequest> {
+    const request = await this.requireActiveRequest(requestId);
+    if (request.requesterAccountId !== requesterAccountId) {
+      throw new ForbiddenException('Solo el solicitante puede cancelar su contratación');
+    }
+    const caregiver = await this.caregiverAccess.findById(request.caregiverId);
+    return this.closeActiveAssignment(request, {
+      actorAccountId: requesterAccountId,
+      reason: 'cancelled-by-requester',
+      operationId: dto.operationId,
+      note: dto.note ?? null,
+      recipientAccountIds: caregiver ? [caregiver.accountId] : [],
+    });
+  }
+
+  /** El cuidador cancela la asignación activa; se notifica al solicitante por campana. */
+  async cancelActiveByCaregiver(
+    requestId: string,
+    caregiverAccountId: string,
+    dto: CancelActiveDto,
+  ): Promise<HiringRequest> {
+    const caregiver = await this.requireCaregiverByAccount(caregiverAccountId);
+    const request = await this.requireActiveRequest(requestId);
+    if (request.caregiverId !== caregiver.id) {
+      throw new ForbiddenException('La solicitud no es de este cuidador');
+    }
+    return this.closeActiveAssignment(request, {
+      actorAccountId: caregiverAccountId,
+      reason: 'cancelled-by-caregiver',
+      operationId: dto.operationId,
+      note: dto.note ?? null,
+      recipientAccountIds: [request.requesterAccountId],
+    });
+  }
+
+  /** Un admin (soporte) cancela la asignación activa; se notifica a ambas partes por campana. */
+  async cancelActiveByAdmin(
+    requestId: string,
+    adminAccountId: string,
+    dto: CancelActiveDto,
+  ): Promise<HiringRequest> {
+    const request = await this.requireActiveRequest(requestId);
+    const caregiver = await this.caregiverAccess.findById(request.caregiverId);
+    return this.closeActiveAssignment(request, {
+      actorAccountId: adminAccountId,
+      reason: 'cancelled-by-admin',
+      operationId: dto.operationId,
+      note: dto.note ?? null,
+      recipientAccountIds: [
+        request.requesterAccountId,
+        ...(caregiver ? [caregiver.accountId] : []),
+      ],
+    });
+  }
+
+  // --- UC-09 A4 · No-show del cuidador, registrado por el solicitante (KER-32, NFR-15) ---
+  async recordNoShow(
+    requestId: string,
+    requesterAccountId: string,
+    dto: RecordNoShowDto,
+  ): Promise<HiringRequest> {
+    const request = await this.requireActiveRequest(requestId);
+    if (request.requesterAccountId !== requesterAccountId) {
+      throw new ForbiddenException('Solo el solicitante puede registrar el no-show');
+    }
+    const caregiver = await this.caregiverAccess.findById(request.caregiverId);
+    return this.closeActiveAssignment(request, {
+      actorAccountId: requesterAccountId,
+      reason: 'no-show',
+      operationId: dto.operationId,
+      note: dto.note ?? null,
+      noShowReportedAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
+      recipientAccountIds: caregiver ? [caregiver.accountId] : [],
+    });
+  }
+
+  /** Precondición común de A3/A4: la solicitud existe y tiene asignación activa. */
+  private async requireActiveRequest(requestId: string): Promise<HiringRequest> {
+    const request = await this.hiringAccess.findRequestById(requestId);
+    if (!request) throw new NotFoundException('Solicitud no encontrada');
+    if (request.status !== 'accepted' && request.status !== 'in-progress') {
+      throw new BadRequestException(`No hay asignación activa que cerrar (estado ${request.status})`);
+    }
+    return request;
+  }
+
+  /**
+   * Cierre común de la asignación activa (A3/A4): en UNA transacción cierra la solicitud con su
+   * razón terminal (precondición SQL de estado: at-most-once, NFR-34), historifica la asignación,
+   * audita y publica `hiring.assignment.closed` en el outbox; la campana a la contraparte la
+   * escribe CareRecord al consumir el evento (Manager→Manager solo encolado, constitution §3.2).
+   */
+  private async closeActiveAssignment(
+    request: HiringRequest,
+    opts: CloseActiveOptions,
+  ): Promise<HiringRequest> {
+    const decidedAt = new Date();
+    const event = await this.tx.run(async (em) => {
+      const closed = await this.hiringAccess.closeActiveRequest(
+        request.id,
+        opts.reason,
+        decidedAt,
+        opts.noShowReportedAt ?? null,
+        em,
+      );
+      if (!closed) {
+        // Perdió la carrera contra otro cierre: no reescribe la razón ni duplica efectos.
+        throw new BadRequestException('La asignación ya fue cerrada por otra operación');
+      }
+      await this.hiringAccess.setAssignmentsHistoricalForRequest(request.id, em);
+      await this.audit.record({
+        action: opts.reason === 'no-show' ? 'hiring.request.no-show' : `hiring.assignment.${opts.reason}`,
+        actor: opts.actorAccountId,
+        target: { type: 'hiring_request', id: request.id },
+        metadata: {
+          terminalReason: opts.reason,
+          operationId: opts.operationId,
+          ...(opts.note ? { note: opts.note } : {}),
+          ...(opts.noShowReportedAt ? { noShowReportedAt: opts.noShowReportedAt.toISOString() } : {}),
+        },
+        manager: em,
+      });
+      return this.pubsub.publish({
+        manager: em,
+        type: DomainEventType.AssignmentClosed,
+        operationId: opts.operationId,
+        payload: {
+          requestId: request.id,
+          patientId: request.patientId,
+          caregiverId: request.caregiverId,
+          reason: opts.reason,
+          note: opts.note,
+          noShowReportedAt: opts.noShowReportedAt?.toISOString() ?? null,
+          recipientAccountIds: opts.recipientAccountIds,
+        },
+      });
+    });
+    // Tras el commit se encola el dispatch (patrón outbox, igual que la desactivación NFR-31).
+    await this.pubsub.enqueue(event);
     return (await this.hiringAccess.findRequestById(request.id))!;
   }
 

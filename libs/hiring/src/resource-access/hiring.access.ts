@@ -79,6 +79,30 @@ export class HiringAccess {
   }
 
   /**
+   * KER-32 · Cierre de la asignación ACTIVA (cancelación / no-show) con precondición SQL de
+   * estado: solo transiciona desde `accepted`/`in-progress`. At-most-once por la precondición
+   * (dos actores cancelando a la vez: solo uno gana; el reintento devuelve false y no reescribe
+   * la razón). Devuelve true si esta llamada ejecutó el cierre.
+   */
+  async closeActiveRequest(
+    id: string,
+    reason: HiringTerminalReason,
+    decidedAt: Date,
+    noShowReportedAt: Date | null,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const repo = manager ? manager.getRepository(HiringRequest) : this.requests;
+    const result = await repo
+      .createQueryBuilder()
+      .update(HiringRequest)
+      .set({ status: 'completed', terminalReason: reason, decidedAt, noShowReportedAt })
+      .where('id = :id', { id })
+      .andWhere('status IN (:...active)', { active: ['accepted', 'in-progress'] })
+      .execute();
+    return (result.affected ?? 0) > 0;
+  }
+
+  /**
    * Honor-mark de pago (OQ-1): set-una-sola-vez por precondición `paidDeclaredAt IS NULL`
    * (at-most-once sin operationId, NFR-34). Devuelve true si esta llamada lo registró.
    */

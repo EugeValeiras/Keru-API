@@ -37,6 +37,9 @@ import { FileStorageUtility } from './files/file-storage.util';
           host: config.get<string>('REDIS_HOST', 'localhost'),
           port: config.get<number>('REDIS_PORT', 6379),
         },
+        // Aísla las colas por entorno cuando comparten Redis (e2e vs API dev): sin esto, el
+        // worker de OTRA instancia roba el job y busca el outbox event en la base equivocada.
+        prefix: config.get<string>('BULLMQ_PREFIX', 'bull'),
       }),
     }),
     BullModule.registerQueue({ name: OUTBOX_QUEUE }),

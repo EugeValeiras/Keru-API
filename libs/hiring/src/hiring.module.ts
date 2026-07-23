@@ -10,6 +10,7 @@ import { MatchingEngine } from './engine/matching.engine';
 import { HiringManager } from './manager/hiring.manager';
 import { MarketplaceController } from './marketplace.controller';
 import { CaregiverRequestsController } from './caregiver-requests.controller';
+import { AdminHiringController } from './admin-hiring.controller';
 
 /**
  * Dominio Hiring (constitution §3). Marketplace: buscar, contratar, ciclo de vida + historial.
@@ -21,7 +22,7 @@ import { CaregiverRequestsController } from './caregiver-requests.controller';
     MembershipModule,
     TypeOrmModule.forFeature([HiringRequest, Assignment, Favorite]),
   ],
-  controllers: [MarketplaceController, CaregiverRequestsController],
+  controllers: [MarketplaceController, CaregiverRequestsController, AdminHiringController],
   providers: [MatchingEngine, HiringAccess, FavoriteAccess, HiringManager],
   exports: [HiringAccess, HiringManager],
 })

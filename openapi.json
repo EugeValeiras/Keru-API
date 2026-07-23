@@ -1263,6 +1263,138 @@
         ]
       }
     },
+    "/api/v1/hiring-requests/rehire": {
+      "post": {
+        "description": "Re-solicitud dirigida a un cuidador que ya atendió al paciente, sin re-búsqueda. Re-pinnea la tarifa vigente (NFR-03/21) y la respuesta incluye el diff tarifa anterior vs vigente (NFR-23). Sigue el ciclo normal de UC-10.",
+        "operationId": "MarketplaceController_rehire_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RehireRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RehireResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-16 A2 · Rehire urgente hacia un cuidador previo (KER-32)",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/hiring-requests/{id}/cancel-active": {
+      "post": {
+        "description": "Cierra el servicio aceptado/en curso con razón terminal `cancelled-by-requester`, audita y notifica al cuidador por la campana (UC-18). Verbo mutante con operationId (NFR-34).",
+        "operationId": "MarketplaceController_cancelActive_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelActiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 A3 · Cancelar la asignación activa (solicitante, KER-32)",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/hiring-requests/{id}/no-show": {
+      "post": {
+        "description": "El solicitante registra que el cuidador no se presentó, con timestamp. Cierra el servicio con razón terminal `no-show`, audita y notifica al cuidador por la campana. No habilita reseñas (NFR-20).",
+        "operationId": "MarketplaceController_noShow_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordNoShowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 A4 · Registrar no-show del cuidador (KER-32)",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
     "/api/v1/hiring-requests/{id}/complete": {
       "post": {
         "description": "Cierra el servicio con razón terminal `completed` (Decouple row 49). El pago no participa: declararlo es un paso opcional posterior (`declare-paid`).",
@@ -1442,6 +1574,53 @@
         ]
       }
     },
+    "/api/v1/caregiver/requests/{id}/cancel-active": {
+      "post": {
+        "description": "Cierra el servicio aceptado/en curso con razón terminal `cancelled-by-caregiver`, audita y notifica al solicitante por la campana (UC-18). Verbo mutante con operationId (NFR-34).",
+        "operationId": "CaregiverRequestsController_cancelActive_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelActiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 A3 · Cancelar la asignación activa (cuidador, KER-32)",
+        "tags": [
+          "Caregiver requests"
+        ]
+      }
+    },
     "/api/v1/caregiver/requests/{id}/decline": {
       "post": {
         "operationId": "CaregiverRequestsController_decline_v1",
@@ -1475,6 +1654,53 @@
         "summary": "UC-10 · Rechazar solicitud",
         "tags": [
           "Caregiver requests"
+        ]
+      }
+    },
+    "/api/v1/admin/hiring-requests/{id}/cancel-active": {
+      "post": {
+        "description": "Cierra el servicio aceptado/en curso con razón terminal `cancelled-by-admin`, audita y notifica a ambas partes por la campana (UC-18). Verbo mutante con operationId (NFR-34).",
+        "operationId": "AdminHiringController_cancelActive_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelActiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 A3 · Cancelar la asignación activa (admin/soporte, KER-32)",
+        "tags": [
+          "Admin hiring"
         ]
       }
     },
@@ -3523,6 +3749,11 @@
             "type": "string",
             "description": "Honor-mark de pago declarado por el solicitante tras el cierre (opcional, NFR-10/58)."
           },
+          "noShowReportedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Momento del no-show reportado por el solicitante (UC-09 A4, KER-32); solo con razón `no-show`."
+          },
           "ratePerHourSnapshot": {
             "type": "string",
             "description": "Tarifa pinneada al solicitar (NFR-03/23)"
@@ -3537,6 +3768,220 @@
           "endDate",
           "status",
           "ratePerHourSnapshot"
+        ]
+      },
+      "RehireRequestDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caregiverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "home",
+              "hospital"
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2026-08-01T08:00:00Z"
+          },
+          "endDate": {
+            "type": "string",
+            "example": "2026-08-15T18:00:00Z"
+          },
+          "specialRequirements": {
+            "type": "string",
+            "example": "Requiere movilidad reducida"
+          },
+          "contactData": {
+            "type": "object",
+            "example": {
+              "phone": "+54 11 5555-5555"
+            }
+          }
+        },
+        "required": [
+          "operationId",
+          "patientId",
+          "caregiverId",
+          "modality",
+          "startDate",
+          "endDate",
+          "contactData"
+        ]
+      },
+      "RehireRateDiffDto": {
+        "type": "object",
+        "properties": {
+          "previousRatePerHour": {
+            "type": "string",
+            "description": "Tarifa pinneada en la última contratación previa con ese cuidador"
+          },
+          "currentRatePerHour": {
+            "type": "string",
+            "description": "Tarifa vigente re-pinneada en esta re-solicitud (NFR-03/21)"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "true si la tarifa cambió desde la contratación anterior"
+          }
+        },
+        "required": [
+          "previousRatePerHour",
+          "currentRatePerHour",
+          "currency",
+          "changed"
+        ]
+      },
+      "RehireResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caregiverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientName": {
+            "type": "string",
+            "description": "Nombre del paciente (visible para el cuidador, UC-10)"
+          },
+          "caregiverName": {
+            "type": "string",
+            "description": "Nombre del cuidador (visible para el solicitante)"
+          },
+          "modality": {
+            "type": "string"
+          },
+          "startDate": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endDate": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "specialRequirements": {
+            "type": "string"
+          },
+          "contactData": {
+            "type": "object",
+            "description": "Datos de contacto del solicitante. Para el cuidador solo con solicitud aceptada/en curso (UC-10)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "in-progress",
+              "completed",
+              "expired"
+            ]
+          },
+          "terminalReason": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "cancelled-by-requester",
+              "cancelled-by-caregiver",
+              "cancelled-by-admin",
+              "no-show",
+              "end-of-life"
+            ],
+            "description": "Razón terminal del cierre del servicio (Decouple row 49); solo en estados terminales de servicio."
+          },
+          "paidDeclaredAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Honor-mark de pago declarado por el solicitante tras el cierre (opcional, NFR-10/58)."
+          },
+          "noShowReportedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Momento del no-show reportado por el solicitante (UC-09 A4, KER-32); solo con razón `no-show`."
+          },
+          "ratePerHourSnapshot": {
+            "type": "string",
+            "description": "Tarifa pinneada al solicitar (NFR-03/23)"
+          },
+          "rateDiff": {
+            "$ref": "#/components/schemas/RehireRateDiffDto"
+          }
+        },
+        "required": [
+          "id",
+          "patientId",
+          "caregiverId",
+          "modality",
+          "startDate",
+          "endDate",
+          "status",
+          "ratePerHourSnapshot",
+          "rateDiff"
+        ]
+      },
+      "CancelActiveDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "note": {
+            "type": "string",
+            "example": "Viaje imprevisto: no puedo continuar el servicio",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "operationId"
+        ]
+      },
+      "RecordNoShowDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "occurredAt": {
+            "type": "string",
+            "example": "2026-08-01T08:30:00Z",
+            "description": "Momento del no-show; por defecto, el del registro."
+          },
+          "note": {
+            "type": "string",
+            "example": "No se presentó al inicio del turno",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "operationId"
         ]
       },
       "CaregiverHistoryItemDto": {

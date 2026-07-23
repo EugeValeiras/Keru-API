@@ -40,6 +40,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     caregiverAccess: {},
     accountAccess: {},
     audit: { record: jest.fn() },
+    pubsub: { publish: jest.fn().mockResolvedValue({ id: 'evt-1' }), enqueue: jest.fn() },
     reputation: {},
     ...overrides,
   };
@@ -51,6 +52,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     deps.caregiverAccess as never,
     deps.accountAccess as never,
     deps.audit as never,
+    deps.pubsub as never,
     deps.reputation as never,
   );
   return { manager, deps };

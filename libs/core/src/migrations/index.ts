@@ -9,9 +9,11 @@
 import { InitialSchema1784783279894 } from './1784783279894-InitialSchema';
 import { SeparateCompletionFromPaidDeclared1784786611330 } from './1784786611330-SeparateCompletionFromPaidDeclared';
 import { RangeVersions1784788818727 } from './1784788818727-RangeVersions';
+import { NoShowReportedAt1784803218727 } from './1784803218727-NoShowReportedAt';
 
 export const ALL_MIGRATIONS: Array<new () => unknown> = [
   InitialSchema1784783279894,
   SeparateCompletionFromPaidDeclared1784786611330,
   RangeVersions1784788818727,
+  NoShowReportedAt1784803218727,
 ];

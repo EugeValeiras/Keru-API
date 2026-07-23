@@ -125,11 +125,15 @@ export class ReputationManager {
     return (await this.reviewAccess.findByRequestAndAuthor(requestId, authorAccountId))!;
   }
 
-  /** NFR-20: la elegibilidad la da el servicio completado; el honor-mark de pago no participa. */
+  /**
+   * NFR-20: la elegibilidad la da la razón terminal `completed`; el honor-mark de pago no
+   * participa. El estado `completed` significa "cerrado" (KER-31): un cierre por cancelación
+   * o no-show (KER-32) comparte estado pero NO habilita reseñas — decide `terminalReason`.
+   */
   private async requireCompletedRequest(requestId: string) {
     const request = await this.hiringAccess.findRequestById(requestId);
     if (!request) throw new NotFoundException('Solicitud no encontrada');
-    if (request.status !== 'completed') {
+    if (request.status !== 'completed' || request.terminalReason !== 'completed') {
       throw new BadRequestException('Solo se puede reseñar un servicio completado');
     }
     return request;

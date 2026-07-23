@@ -16,3 +16,8 @@ process.env.DB_SYNCHRONIZE = 'true';
 // throttling lo apaga en su beforeAll para ejercitar el guard real con la cuota de auth en 5.
 process.env.THROTTLE_SKIP = 'true';
 process.env.THROTTLE_AUTH_LIMIT = '5';
+
+// Prefijo BullMQ propio del e2e (KER-32): el Redis es compartido con la API dev; sin prefijo,
+// el worker de la API dev roba los jobs del outbox del e2e y los descarta (su base no tiene
+// los eventos de keru_e2e). Los specs comparten prefijo entre sí: todos leen keru_e2e.
+process.env.BULLMQ_PREFIX = 'keru-e2e';
