@@ -29,6 +29,11 @@ export class CareConsultController {
       measuredAt: r.measuredAt,
       authorRole: r.authorRole,
       data: r.data,
+      // NFR-38: la traza de corrección es parte del historial legible.
+      supersedesRecordId: r.supersedesRecordId,
+      correctionReason: r.correctionReason,
+      supersededAt: r.supersededAt,
+      supersededByRecordId: r.supersededByRecordId,
     }));
   }
 

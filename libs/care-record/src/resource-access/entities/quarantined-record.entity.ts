@@ -53,6 +53,14 @@ export class QuarantinedRecord {
   @Column({ type: 'uuid', nullable: true })
   approvedRecordId!: string | null;
 
+  /** NFR-38: si el intento era una CORRECCIÓN, el registro que corrige — aprobar aplica la corrección. */
+  @Column({ type: 'uuid', nullable: true })
+  supersedesRecordId!: string | null;
+
+  /** NFR-38: razón de la corrección del intento en cuarentena. */
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  correctionReason!: string | null;
+
   @Column({ type: 'varchar', length: 128, nullable: true, unique: true })
   createdByOperationId!: string | null;
 

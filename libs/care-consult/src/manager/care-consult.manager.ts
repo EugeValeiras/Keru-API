@@ -38,7 +38,8 @@ export class CareConsultManager {
     const records = await this.careRecordAccess.listForPatient(patientId); // orden desc por measuredAt
     const latest = new Map<string, CurrentMetric>();
     for (const r of records) {
-      if (r.type !== 'vitals') continue;
+      // NFR-38: el estado actual usa solo versiones vigentes — un registro corregido no cuenta.
+      if (r.type !== 'vitals' || r.supersededAt) continue;
       for (const v of this.values(r)) {
         if (!latest.has(v.metricKey)) {
           latest.set(v.metricKey, { metricKey: v.metricKey, value: v.value, measuredAt: r.measuredAt });
@@ -48,19 +49,22 @@ export class CareConsultManager {
     return { patientId, metrics: [...latest.values()], asOf: new Date().toISOString() };
   }
 
-  /** UC-14 · Historial cronológico (vitales, medicación, novedades), por tiempo de medición. */
+  /**
+   * UC-14 · Historial cronológico (vitales, medicación, novedades), por tiempo de medición.
+   * Incluye las versiones superseded (NFR-38: el original queda legible, con su marca).
+   */
   async getHistory(patientId: string, principal: AuthPrincipal): Promise<ClinicalRecord[]> {
     await this.assertCanRead(patientId, principal);
     return this.careRecordAccess.listForPatient(patientId);
   }
 
-  /** UC-15 · Serie temporal de una métrica para graficar. */
+  /** UC-15 · Serie temporal de una métrica para graficar. Solo versiones vigentes (NFR-38). */
   async getSeries(patientId: string, metricKey: string, principal: AuthPrincipal): Promise<SeriesPoint[]> {
     await this.assertCanRead(patientId, principal);
     const records = await this.careRecordAccess.listForPatient(patientId);
     const points: SeriesPoint[] = [];
     for (const r of records) {
-      if (r.type !== 'vitals') continue;
+      if (r.type !== 'vitals' || r.supersededAt) continue;
       for (const v of this.values(r)) {
         if (v.metricKey === metricKey) points.push({ measuredAt: r.measuredAt, value: v.value });
       }

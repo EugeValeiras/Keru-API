@@ -1,5 +1,6 @@
 import { EntityManager } from 'typeorm';
 import { AlertAccess } from './alert.access';
+import { Alert } from './entities/alert.entity';
 import { Notification } from './entities/notification.entity';
 import { NotificationDelivery } from './entities/notification-delivery.entity';
 
@@ -110,6 +111,55 @@ describe('KER-34 · outcome de entrega (NFR-26)', () => {
     expect(deliveryQb.values).toHaveBeenCalledWith(
       expect.objectContaining({ notificationId: 'n-1', channel: 'push', status: 'failed' }),
     );
+  });
+});
+
+function makeUpdateQb(executeResult: { raw: unknown[]; affected?: number }) {
+  const qb: Record<string, jest.Mock> = {};
+  for (const m of ['update', 'set', 'where', 'andWhere', 'returning']) {
+    qb[m] = jest.fn().mockReturnValue(qb);
+  }
+  qb.execute = jest.fn().mockResolvedValue(executeResult);
+  return qb;
+}
+
+describe('KER-36 · resuelta-por-corrección (NFR-38)', () => {
+  function makeCorrectionSetup(raw: unknown[]) {
+    const alertQb = makeUpdateQb({ raw, affected: raw.length });
+    const alertRepo = { createQueryBuilder: jest.fn().mockReturnValue(alertQb) };
+    const em = {
+      getRepository: jest.fn((entity: unknown) => {
+        if (entity === Alert) return alertRepo;
+        throw new Error('repo inesperado');
+      }),
+    } as unknown as EntityManager;
+    const access = new AlertAccess(alertRepo as never, {} as never, {} as never);
+    return { access, em, alertQb };
+  }
+
+  it('resolveByCorrection sella resolvedAt/resolvedByRecordId SOLO en las alertas abiertas del registro corregido y las devuelve', async () => {
+    const resolved = [{ id: 'alert-1', message: 'fuera de rango' }];
+    const { access, em, alertQb } = makeCorrectionSetup(resolved);
+
+    const result = await access.resolveByCorrection('rec-1', 'rec-2', em);
+
+    expect(alertQb.set).toHaveBeenCalledWith(
+      expect.objectContaining({ resolvedByRecordId: 'rec-2', resolvedAt: expect.any(Function) }),
+    );
+    expect(alertQb.where).toHaveBeenCalledWith('"recordId" = :recordId', { recordId: 'rec-1' });
+    expect(alertQb.andWhere).toHaveBeenCalledWith('"resolvedAt" IS NULL'); // precondición: re-aplicar no re-resuelve
+    expect(alertQb.returning).toHaveBeenCalledWith('*');
+    expect(result).toEqual(resolved);
+  });
+
+  it('el barrido de escalación NUNCA reclama una alerta resuelta-por-corrección (dejó de merecer entrega)', async () => {
+    const alertQb = makeUpdateQb({ raw: [] });
+    const alertsRepo = { createQueryBuilder: jest.fn().mockReturnValue(alertQb) };
+    const access = new AlertAccess(alertsRepo as never, {} as never, {} as never);
+
+    await access.claimEscalatable(new Date());
+
+    expect(alertQb.andWhere).toHaveBeenCalledWith('"resolvedAt" IS NULL');
   });
 });
 

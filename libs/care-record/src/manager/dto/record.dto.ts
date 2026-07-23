@@ -84,3 +84,62 @@ export class RecordNoteDto extends WithOperationIdentity {
   @MaxLength(1000)
   text!: string;
 }
+
+/**
+ * NFR-38 · Corregir un registro (UC-12 A5): versión nueva con razón obligatoria. El contenido va
+ * según el type del ORIGINAL (values para vitals; medication/dose/... para medication; text para
+ * note) — el Manager valida la correspondencia.
+ */
+export class CorrectRecordDto extends WithOperationIdentity {
+  @ApiProperty({ example: 'Error de tipeo: la temperatura era 36.8, no 39.8', maxLength: 500 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  reason!: string;
+
+  @ApiPropertyOptional({ description: 'Corrige también el tiempo de medición. Default: el del original (NFR-36).', example: '2026-07-21T10:00:00Z' })
+  @IsOptional()
+  @IsString()
+  measuredAt?: string;
+
+  @ApiPropertyOptional({ type: [MetricValueDto], description: 'Si el original es vitals.' })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => MetricValueDto)
+  values?: MetricValueDto[];
+
+  @ApiPropertyOptional({ example: 'Enalapril', description: 'Si el original es medication.' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  medication?: string;
+
+  @ApiPropertyOptional({ example: '10 mg' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  dose?: string;
+
+  @ApiPropertyOptional({ example: '08:00' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  schedule?: string;
+
+  @ApiPropertyOptional({ example: 'Tomada con el desayuno' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  observations?: string;
+
+  @ApiPropertyOptional({ example: 'Durmió bien, comió poco en el almuerzo', description: 'Si el original es note.' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  text?: string;
+}

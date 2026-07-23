@@ -80,6 +80,7 @@ export class AlertAccess {
       .andWhere('"metricKey" = :metricKey', { metricKey })
       .andWhere('severity = :critical', { critical: 'critical' })
       .andWhere('"supersededAt" IS NULL')
+      .andWhere('"resolvedAt" IS NULL')
       .andWhere('id != :newAlertId', { newAlertId })
       .andWhere(
         'NOT EXISTS (SELECT 1 FROM "notification" n WHERE n."alertId" = "alert"."id" AND n."read" = true)',
@@ -102,10 +103,32 @@ export class AlertAccess {
       .where('severity = :critical', { critical: 'critical' })
       .andWhere('"escalatedAt" IS NULL')
       .andWhere('"supersededAt" IS NULL')
+      .andWhere('"resolvedAt" IS NULL')
       .andWhere('"createdAt" < :cutoff', { cutoff })
       .andWhere(
         'NOT EXISTS (SELECT 1 FROM "notification" n WHERE n."alertId" = "alert"."id" AND n."read" = true)',
       )
+      .returning('*')
+      .execute();
+    return result.raw as Alert[];
+  }
+
+  /**
+   * NFR-38 (KER-36): resuelve-por-corrección las alertas ABIERTAS disparadas por el registro
+   * corregido — quedan trazadas a la corrección (resolvedAt/resolvedByRecordId) y fuera del
+   * circuito de escalación. Corre en la MISMA transacción que la corrección. Devuelve las
+   * alertas resueltas (para la campana de resolución al círculo).
+   */
+  // operation-identity: exempt — transición con precondición (resolvedAt IS NULL) dentro de la
+  // transacción de la corrección: el at-most-once lo da el operationId del verbo padre.
+  async resolveByCorrection(recordId: string, byRecordId: string, manager: EntityManager): Promise<Alert[]> {
+    const result = await manager
+      .getRepository(Alert)
+      .createQueryBuilder()
+      .update(Alert)
+      .set({ resolvedAt: () => 'now()', resolvedByRecordId: byRecordId })
+      .where('"recordId" = :recordId', { recordId })
+      .andWhere('"resolvedAt" IS NULL')
       .returning('*')
       .execute();
     return result.raw as Alert[];

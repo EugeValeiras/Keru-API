@@ -2,7 +2,7 @@ import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
 import { CareRecordManager } from './manager/care-record.manager';
-import { RecordMedicationDto, RecordNoteDto, RecordVitalsDto } from './manager/dto/record.dto';
+import { CorrectRecordDto, RecordMedicationDto, RecordNoteDto, RecordVitalsDto } from './manager/dto/record.dto';
 import { RecordResponseDto } from './manager/dto/responses.dto';
 
 /**
@@ -38,6 +38,21 @@ export class CareRecordController {
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<RecordResponseDto> {
     return RecordResponseDto.from(await this.careRecord.recordMedication(patientId, dto, account));
+  }
+
+  @Post('records/:recordId/corrections')
+  @ApiOperation({
+    summary:
+      'UC-12 A5 · Corregir un registro (NFR-38): versión nueva con autor y razón; el original queda superseded y las alertas se re-evalúan',
+  })
+  @ApiCreatedResponse({ type: RecordResponseDto })
+  async correct(
+    @Param('patientId') patientId: string,
+    @Param('recordId') recordId: string,
+    @Body() dto: CorrectRecordDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<RecordResponseDto> {
+    return RecordResponseDto.from(await this.careRecord.correctRecord(patientId, recordId, dto, account));
   }
 
   @Post('notes')

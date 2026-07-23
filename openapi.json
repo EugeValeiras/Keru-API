@@ -1960,6 +1960,60 @@
         ]
       }
     },
+    "/api/v1/patients/{patientId}/records/{recordId}/corrections": {
+      "post": {
+        "operationId": "CareRecordController_correct_v1",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recordId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectRecordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-12 A5 · Corregir un registro (NFR-38): versión nueva con autor y razón; el original queda superseded y las alertas se re-evalúan",
+        "tags": [
+          "Care record"
+        ]
+      }
+    },
     "/api/v1/patients/{patientId}/notes": {
       "post": {
         "operationId": "CareRecordController_note_v1",
@@ -4263,6 +4317,12 @@
               "quarantined"
             ],
             "description": "recorded: entró al historial. quarantined: llegada tardía no autorizada en cuarentena (NFR-30), pendiente de resolución del círculo — nunca se descarta en silencio."
+          },
+          "supersedesRecordId": {
+            "type": "object",
+            "nullable": true,
+            "format": "uuid",
+            "description": "NFR-38: si es una corrección, la versión (registro) que reemplaza — el original queda superseded."
           }
         },
         "required": [
@@ -4307,6 +4367,59 @@
           "operationId",
           "medication",
           "dose"
+        ]
+      },
+      "CorrectRecordDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Error de tipeo: la temperatura era 36.8, no 39.8",
+            "maxLength": 500
+          },
+          "measuredAt": {
+            "type": "string",
+            "description": "Corrige también el tiempo de medición. Default: el del original (NFR-36).",
+            "example": "2026-07-21T10:00:00Z"
+          },
+          "values": {
+            "description": "Si el original es vitals.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricValueDto"
+            }
+          },
+          "medication": {
+            "type": "string",
+            "example": "Enalapril",
+            "description": "Si el original es medication."
+          },
+          "dose": {
+            "type": "string",
+            "example": "10 mg"
+          },
+          "schedule": {
+            "type": "string",
+            "example": "08:00"
+          },
+          "observations": {
+            "type": "string",
+            "example": "Tomada con el desayuno"
+          },
+          "text": {
+            "type": "string",
+            "example": "Durmió bien, comió poco en el almuerzo",
+            "description": "Si el original es note."
+          }
+        },
+        "required": [
+          "operationId",
+          "reason"
         ]
       },
       "RecordNoteDto": {
@@ -4545,6 +4658,17 @@
             "nullable": true,
             "format": "uuid",
             "description": "Si se aprobó: registro promovido al historial."
+          },
+          "supersedesRecordId": {
+            "type": "object",
+            "nullable": true,
+            "format": "uuid",
+            "description": "NFR-38: si el intento era una corrección, el registro que corrige."
+          },
+          "correctionReason": {
+            "type": "object",
+            "nullable": true,
+            "description": "NFR-38: razón de la corrección en cuarentena."
           }
         },
         "required": [

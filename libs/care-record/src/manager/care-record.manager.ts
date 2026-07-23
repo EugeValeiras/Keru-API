@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -11,7 +12,7 @@ import { EntityManager } from 'typeorm';
 import { Manager, AuditUtility, AuthPrincipal, PermissionEngine, TransactionUtility } from '@keru/core';
 import { AccountAccess } from '@keru/membership';
 import { METRIC_DEFINITIONS } from '../metric-definitions';
-import { CareRecordAccess } from '../resource-access/care-record.access';
+import { CareRecordAccess, RecordInput } from '../resource-access/care-record.access';
 import { ageInYearsAt, RangeAccess } from '../resource-access/range.access';
 import { AlertAccess } from '../resource-access/alert.access';
 import { QuarantineAccess } from '../resource-access/quarantine.access';
@@ -21,7 +22,7 @@ import { PushSubscription } from '../resource-access/entities/push-subscription.
 import { AlertEngine } from '../engine/alert.engine';
 import { ClinicalRecord, ClinicalRecordType } from '../resource-access/entities/clinical-record.entity';
 import { QuarantinedRecord } from '../resource-access/entities/quarantined-record.entity';
-import { RecordMedicationDto, RecordNoteDto, RecordVitalsDto } from './dto/record.dto';
+import { CorrectRecordDto, RecordMedicationDto, RecordNoteDto, RecordVitalsDto } from './dto/record.dto';
 
 /** Resultado de un registro clínico: entró al historial o quedó en cuarentena (NFR-30). */
 export type RecordOutcome =
@@ -277,6 +278,152 @@ export class CareRecordManager implements OnApplicationBootstrap {
     return result;
   }
 
+  // --- UC-12 A5 · Corregir un registro (NFR-38, I2) ---
+
+  /**
+   * NFR-38: un registro nunca se edita — corregirlo crea un registro NUEVO append-only que
+   * referencia al original (supersedesRecordId) con autor y razón; el original queda intacto y
+   * marcado superseded (solo se corrige la versión vigente). Re-evaluación: las alertas abiertas
+   * del original quedan resueltas-por-corrección (campana al círculo) y el valor corregido se
+   * evalúa como cualquier ingreso — puede disparar una alerta nueva que referencia la versión
+   * nueva. Misma autoridad y cuarentena que el alta (NFR-30, autoridad al measuredAt corregido)
+   * e idempotente por operationId (NFR-34).
+   */
+  async correctRecord(
+    patientId: string,
+    recordId: string,
+    dto: CorrectRecordDto,
+    principal: AuthPrincipal,
+  ): Promise<RecordOutcome> {
+    const original = await this.careRecordAccess.findById(recordId);
+    if (!original || original.patientId !== patientId) throw new NotFoundException('Registro no encontrado');
+
+    const dup = await this.careRecordAccess.findByOperationId(dto.operationId);
+    if (dup) return { outcome: 'recorded', record: dup }; // idempotente: no re-corrige ni re-alerta (NFR-34)
+    const dupQuarantined = await this.quarantineAccess.findByOperationId(dto.operationId);
+    if (dupQuarantined) return { outcome: 'quarantined', quarantined: dupQuarantined };
+
+    // La autoridad se evalúa ANTES que el estado del registro: quien no tiene relación recibe
+    // 403 sin aprender si el registro fue corregido o no.
+    const measuredAt = dto.measuredAt ? this.resolveMeasuredAt(dto.measuredAt) : original.measuredAt;
+    const authority = await this.classifyWrite(patientId, principal, measuredAt);
+
+    if (original.supersededAt) {
+      throw new ConflictException('El registro ya fue corregido: la corrección va sobre la versión vigente');
+    }
+
+    const data = this.correctionData(original.type, dto);
+
+    // A1: la corrección tampoco acepta valores implausibles.
+    if (original.type === 'vitals') {
+      for (const v of (data as { values: { metricKey: string; value: number }[] }).values) {
+        const p = this.rangeAccess.getPlausible(v.metricKey);
+        if (v.value < p.min || v.value > p.max) {
+          throw new UnprocessableEntityException(`Valor implausible para ${v.metricKey}: ${v.value} ${p.unit}`);
+        }
+      }
+    }
+
+    if (authority === 'quarantine') {
+      return this.quarantineAttempt(patientId, original.type, principal, measuredAt, data, dto.operationId, {
+        supersedesRecordId: original.id,
+        correctionReason: dto.reason,
+      });
+    }
+
+    const pendingPush: PendingPush[] = [];
+    const result = await this.tx.run(async (em) => {
+      const record = await this.applyCorrection(
+        em,
+        original,
+        {
+          patientId,
+          type: original.type,
+          authorAccountId: principal.accountId,
+          authorRole: principal.role,
+          measuredAt,
+          data,
+          supersedesRecordId: original.id,
+          correctionReason: dto.reason,
+        },
+        dto.operationId,
+        principal.accountId,
+        pendingPush,
+      );
+      return { outcome: 'recorded', record } as const;
+    });
+    await this.dispatchPush(pendingPush);
+    return result;
+  }
+
+  /** El contenido corregido debe corresponder al type del original (400 si no). */
+  private correctionData(type: ClinicalRecordType, dto: CorrectRecordDto): Record<string, unknown> {
+    if (type === 'vitals') {
+      if (!dto.values?.length) throw new BadRequestException('La corrección de un vitals requiere values');
+      return { values: dto.values };
+    }
+    if (type === 'medication') {
+      if (!dto.medication || !dto.dose) {
+        throw new BadRequestException('La corrección de una medicación requiere medication y dose');
+      }
+      return { medication: dto.medication, dose: dto.dose, schedule: dto.schedule, observations: dto.observations };
+    }
+    if (!dto.text) throw new BadRequestException('La corrección de una novedad requiere text');
+    return { text: dto.text };
+  }
+
+  /**
+   * Aplica la corrección DENTRO de la transacción: crea la versión nueva, marca al original
+   * superseded (guard contra corrección concurrente), resuelve-por-corrección sus alertas
+   * abiertas (campana de resolución al círculo, NFR-38), re-evalúa vitales contra la versión
+   * nueva y audita. Lo comparten el camino directo y la aprobación de una corrección en
+   * cuarentena (NFR-30).
+   */
+  private async applyCorrection(
+    em: EntityManager,
+    original: ClinicalRecord,
+    input: RecordInput,
+    operationId: string,
+    actorId: string,
+    pendingPush: PendingPush[],
+  ): Promise<ClinicalRecord> {
+    const record = await this.careRecordAccess.record(input, operationId, em);
+
+    const marked = await this.careRecordAccess.markSuperseded(original.id, record.id, em);
+    if (!marked) {
+      throw new ConflictException('El registro ya fue corregido: la corrección va sobre la versión vigente');
+    }
+
+    const resolved = await this.alertAccess.resolveByCorrection(original.id, record.id, em);
+    for (const alert of resolved) {
+      // Campana propia de la resolución (alertId null): la campana original de la alerta queda
+      // intacta y el unique (alerta, destinatario) no la bloquea.
+      pendingPush.push(
+        await this.notifyCircle(em, input.patientId, actorId, {
+          alertId: null,
+          type: 'alert-resolved',
+          title: 'Alerta resuelta por corrección',
+          body: `El registro que disparó la alerta fue corregido: ${alert.message}`.slice(0, 500),
+        }),
+      );
+    }
+
+    if (input.type === 'vitals') await this.evaluateVitalsAndAlert(em, input.patientId, record, pendingPush);
+
+    await this.audit.record({
+      action: 'care-record.corrected',
+      actor: actorId,
+      target: { type: 'clinical_record', id: record.id },
+      metadata: {
+        supersedesRecordId: original.id,
+        reason: input.correctionReason,
+        resolvedAlertIds: resolved.map((a) => a.id),
+      },
+      manager: em,
+    });
+    return record;
+  }
+
   // --- UC-12 A3 · Cuarentena (NFR-30): el círculo ve y resuelve ---
 
   /** El círculo ve los items en cuarentena (cualquier vinculado; incluye resueltos: traza). */
@@ -297,19 +444,30 @@ export class CareRecordManager implements OnApplicationBootstrap {
 
     const pendingPush: PendingPush[] = [];
     const approved = await this.tx.run(async (em) => {
-      const record = await this.careRecordAccess.record(
-        {
-          patientId,
-          type: item.type,
-          authorAccountId: item.authorAccountId,
-          authorRole: item.authorRole,
-          measuredAt: item.measuredAt,
-          data: item.data,
-        },
-        item.createdByOperationId ?? `quarantine-approve-${item.id}`,
-        em,
-      );
-      if (item.type === 'vitals') await this.evaluateVitalsAndAlert(em, patientId, record, pendingPush);
+      const input: RecordInput = {
+        patientId,
+        type: item.type,
+        authorAccountId: item.authorAccountId,
+        authorRole: item.authorRole,
+        measuredAt: item.measuredAt,
+        data: item.data,
+        supersedesRecordId: item.supersedesRecordId,
+        correctionReason: item.correctionReason,
+      };
+      const operationId = item.createdByOperationId ?? `quarantine-approve-${item.id}`;
+      let record: ClinicalRecord;
+      if (item.supersedesRecordId) {
+        // NFR-38 + NFR-30: el item era una corrección tardía — aprobarla APLICA la corrección
+        // (original superseded, alertas resueltas-por-corrección, re-evaluación).
+        const original = await this.careRecordAccess.findById(item.supersedesRecordId);
+        if (!original || original.patientId !== patientId) {
+          throw new NotFoundException('El registro que esta corrección reemplaza no existe');
+        }
+        record = await this.applyCorrection(em, original, input, operationId, principal.accountId, pendingPush);
+      } else {
+        record = await this.careRecordAccess.record(input, operationId, em);
+        if (item.type === 'vitals') await this.evaluateVitalsAndAlert(em, patientId, record, pendingPush);
+      }
 
       const resolvedAt = new Date();
       await this.quarantineAccess.resolve(
@@ -421,6 +579,7 @@ export class CareRecordManager implements OnApplicationBootstrap {
     measuredAt: Date,
     data: Record<string, unknown>,
     operationId: string,
+    correction?: { supersedesRecordId: string; correctionReason: string },
   ): Promise<RecordOutcome> {
     const existing = await this.quarantineAccess.findByOperationId(operationId);
     if (existing) return { outcome: 'quarantined', quarantined: existing };
@@ -428,7 +587,16 @@ export class CareRecordManager implements OnApplicationBootstrap {
     const pendingPush: PendingPush[] = [];
     const result = await this.tx.run(async (em) => {
       const item = await this.quarantineAccess.quarantine(
-        { patientId, type, authorAccountId: principal.accountId, authorRole: principal.role, measuredAt, data },
+        {
+          patientId,
+          type,
+          authorAccountId: principal.accountId,
+          authorRole: principal.role,
+          measuredAt,
+          data,
+          supersedesRecordId: correction?.supersedesRecordId ?? null,
+          correctionReason: correction?.correctionReason ?? null,
+        },
         operationId,
         em,
       );

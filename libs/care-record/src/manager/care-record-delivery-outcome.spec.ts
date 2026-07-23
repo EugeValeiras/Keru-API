@@ -33,6 +33,10 @@ const clinical = (): ClinicalRecord =>
     measuredAt: MEASURED_AT,
     data: { values: [{ metricKey: 'heart-rate', value: 180 }] },
     createdByOperationId: 'op-1',
+    supersedesRecordId: null,
+    correctionReason: null,
+    supersededAt: null,
+    supersededByRecordId: null,
     recordedAt: new Date(),
   }) as ClinicalRecord;
 
