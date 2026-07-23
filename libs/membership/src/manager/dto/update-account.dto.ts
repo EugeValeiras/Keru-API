@@ -16,7 +16,12 @@ export class UpdateAccountDto {
   @MaxLength(200)
   displayName?: string;
 
-  @ApiPropertyOptional({ example: 'http://localhost:4566/keru-media/images/abc.jpg', nullable: true })
+  @ApiPropertyOptional({
+    type: String,
+    example: 'http://localhost:4566/keru-media/images/abc.jpg',
+    nullable: true,
+    maxLength: 500,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)

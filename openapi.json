@@ -3106,9 +3106,10 @@
             "maxLength": 200
           },
           "photoUrl": {
-            "type": "object",
+            "type": "string",
             "example": "http://localhost:4566/keru-media/images/abc.jpg",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 500
           }
         }
       },
