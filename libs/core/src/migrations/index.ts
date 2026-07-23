@@ -7,5 +7,9 @@
  * contra una base con el esquema vigente, y sumar la clase generada a este array.
  */
 import { InitialSchema1784783279894 } from './1784783279894-InitialSchema';
+import { SeparateCompletionFromPaidDeclared1784786611330 } from './1784786611330-SeparateCompletionFromPaidDeclared';
 
-export const ALL_MIGRATIONS: Array<new () => unknown> = [InitialSchema1784783279894];
+export const ALL_MIGRATIONS: Array<new () => unknown> = [
+  InitialSchema1784783279894,
+  SeparateCompletionFromPaidDeclared1784786611330,
+];

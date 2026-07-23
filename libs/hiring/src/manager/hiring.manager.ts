@@ -243,7 +243,7 @@ export class HiringManager {
     return (await this.hiringAccess.findRequestById(request.id))!;
   }
 
-  // --- UC-09 (OQ-1) · Completar / marcar pagado -> finaliza el servicio ---
+  // --- UC-09 · Completar el servicio: cierre con razón terminal, independiente del pago (Decouple row 49) ---
   async completeRequest(requestId: string, requesterAccountId: string): Promise<HiringRequest> {
     const request = await this.hiringAccess.findRequestById(requestId);
     if (!request) throw new NotFoundException('Solicitud no encontrada');
@@ -251,18 +251,41 @@ export class HiringManager {
       throw new ForbiddenException('Solo el solicitante puede cerrar la contratación');
     }
     if (request.status !== 'accepted' && request.status !== 'in-progress') {
-      throw new BadRequestException(`No se puede finalizar una solicitud en estado ${request.status}`);
+      throw new BadRequestException(`No se puede completar una solicitud en estado ${request.status}`);
     }
     await this.tx.run(async (em) => {
-      await this.hiringAccess.setRequestStatus(request.id, 'finished', new Date(), em);
+      await this.hiringAccess.closeRequest(request.id, 'completed', new Date(), em);
       await this.hiringAccess.setAssignmentsHistoricalForRequest(request.id, em);
       await this.audit.record({
         action: 'hiring.request.completed',
         actor: requesterAccountId,
         target: { type: 'hiring_request', id: request.id },
+        metadata: { terminalReason: 'completed' },
         manager: em,
       });
     });
+    return (await this.hiringAccess.findRequestById(request.id))!;
+  }
+
+  // --- UC-09 (OQ-1) · Declarar pagado: honor-mark opcional post-cierre (NFR-10/58) ---
+  /** No condiciona el cierre ni la elegibilidad de reseña; set-una-sola-vez, re-declarar es no-op. */
+  async declarePaid(requestId: string, requesterAccountId: string): Promise<HiringRequest> {
+    const request = await this.hiringAccess.findRequestById(requestId);
+    if (!request) throw new NotFoundException('Solicitud no encontrada');
+    if (request.requesterAccountId !== requesterAccountId) {
+      throw new ForbiddenException('Solo el solicitante puede declarar el pago');
+    }
+    if (request.status !== 'completed') {
+      throw new BadRequestException('El pago se declara sobre un servicio ya cerrado');
+    }
+    const declared = await this.hiringAccess.declareRequestPaid(request.id, new Date());
+    if (declared) {
+      await this.audit.record({
+        action: 'hiring.request.paid-declared',
+        actor: requesterAccountId,
+        target: { type: 'hiring_request', id: request.id },
+      });
+    }
     return (await this.hiringAccess.findRequestById(request.id))!;
   }
 

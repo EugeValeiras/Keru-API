@@ -113,13 +113,33 @@ export class MarketplaceController {
   }
 
   @Post('hiring-requests/:id/complete')
-  @ApiOperation({ summary: 'UC-09 · Finalizar / marcar como pagada (cierra el servicio)' })
+  @ApiOperation({
+    summary: 'UC-09 · Completar el servicio (cierre con razón terminal, independiente del pago)',
+    description:
+      'Cierra el servicio con razón terminal `completed` (Decouple row 49). El pago no participa: declararlo es un paso opcional posterior (`declare-paid`).',
+  })
   @ApiOkResponse({ type: RequestResponseDto })
   async complete(
     @Param('id') id: string,
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<RequestResponseDto> {
     return RequestResponseDto.from(await this.hiring.completeRequest(id, account.accountId), {
+      viewer: 'requester',
+    });
+  }
+
+  @Post('hiring-requests/:id/declare-paid')
+  @ApiOperation({
+    summary: 'UC-09 (OQ-1) · Declarar pagado (honor-mark opcional post-cierre)',
+    description:
+      'Marca de honor del solicitante sobre un servicio ya cerrado. Opcional: no condiciona el cierre ni la elegibilidad de reseña (NFR-10/20/58). Re-declarar es un no-op idempotente.',
+  })
+  @ApiOkResponse({ type: RequestResponseDto })
+  async declarePaid(
+    @Param('id') id: string,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<RequestResponseDto> {
+    return RequestResponseDto.from(await this.hiring.declarePaid(id, account.accountId), {
       viewer: 'requester',
     });
   }
