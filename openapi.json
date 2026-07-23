@@ -1265,6 +1265,7 @@
     },
     "/api/v1/hiring-requests/{id}/complete": {
       "post": {
+        "description": "Cierra el servicio con razón terminal `completed` (Decouple row 49). El pago no participa: declararlo es un paso opcional posterior (`declare-paid`).",
         "operationId": "MarketplaceController_complete_v1",
         "parameters": [
           {
@@ -1293,7 +1294,44 @@
             "bearer": []
           }
         ],
-        "summary": "UC-09 · Finalizar / marcar como pagada (cierra el servicio)",
+        "summary": "UC-09 · Completar el servicio (cierre con razón terminal, independiente del pago)",
+        "tags": [
+          "Marketplace"
+        ]
+      }
+    },
+    "/api/v1/hiring-requests/{id}/declare-paid": {
+      "post": {
+        "description": "Marca de honor del solicitante sobre un servicio ya cerrado. Opcional: no condiciona el cierre ni la elegibilidad de reseña (NFR-10/20/58). Re-declarar es un no-op idempotente.",
+        "operationId": "MarketplaceController_declarePaid_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-09 (OQ-1) · Declarar pagado (honor-mark opcional post-cierre)",
         "tags": [
           "Marketplace"
         ]
@@ -3464,9 +3502,26 @@
               "declined",
               "cancelled",
               "in-progress",
-              "finished",
+              "completed",
               "expired"
             ]
+          },
+          "terminalReason": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "cancelled-by-requester",
+              "cancelled-by-caregiver",
+              "cancelled-by-admin",
+              "no-show",
+              "end-of-life"
+            ],
+            "description": "Razón terminal del cierre del servicio (Decouple row 49); solo en estados terminales de servicio."
+          },
+          "paidDeclaredAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Honor-mark de pago declarado por el solicitante tras el cierre (opcional, NFR-10/58)."
           },
           "ratePerHourSnapshot": {
             "type": "string",

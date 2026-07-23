@@ -328,8 +328,8 @@ async function seed() {
     return { profile, account };
   }
 
-  /** Lleva una solicitud hasta `finished` (crear -> aceptar -> completar), retomable por status. */
-  async function ensureFinishedHire(
+  /** Lleva una solicitud hasta `completed` (crear -> aceptar -> completar), retomable por status. */
+  async function ensureCompletedHire(
     operationId: string,
     patientId: string,
     caregiver: { profile: Caregiver; account: Account },
@@ -368,7 +368,7 @@ async function seed() {
     patientRating: number,
     patientComment: string,
   ): Promise<void> {
-    if (request.status !== 'finished') {
+    if (request.status !== 'completed') {
       logger.warn(`Solicitud ${request.id} en estado ${request.status}: se omiten sus reseñas`);
       return;
     }
@@ -426,7 +426,7 @@ async function seed() {
 
   // --- Servicios finalizados + reseñas reveladas (ratings variados) ---
   await ensureReviewPair(
-    await ensureFinishedHire('seed-hire-laura-1', rosa.id, laura, juan, 90, 76),
+    await ensureCompletedHire('seed-hire-laura-1', rosa.id, laura, juan, 90, 76),
     juan,
     laura.account,
     5,
@@ -435,7 +435,7 @@ async function seed() {
     'Rosa es un amor y la familia está siempre presente.',
   );
   await ensureReviewPair(
-    await ensureFinishedHire('seed-hire-laura-2', rosa.id, laura, juan, 60, 46),
+    await ensureCompletedHire('seed-hire-laura-2', rosa.id, laura, juan, 60, 46),
     juan,
     laura.account,
     5,
@@ -444,7 +444,7 @@ async function seed() {
     'Segundo servicio con Rosa, todo impecable.',
   );
   await ensureReviewPair(
-    await ensureFinishedHire('seed-hire-laura-3', rosa.id, laura, juan, 30, 21),
+    await ensureCompletedHire('seed-hire-laura-3', rosa.id, laura, juan, 30, 21),
     juan,
     laura.account,
     4,
@@ -453,7 +453,7 @@ async function seed() {
     'Buen trato, hubo que reprogramar un par de visitas.',
   );
   await ensureReviewPair(
-    await ensureFinishedHire('seed-hire-marta-1', rosa.id, marta, juan, 120, 106),
+    await ensureCompletedHire('seed-hire-marta-1', rosa.id, marta, juan, 120, 106),
     juan,
     marta.account,
     4,
@@ -462,7 +462,7 @@ async function seed() {
     'Paciente tranquila, indicaciones claras de la familia.',
   );
   await ensureReviewPair(
-    await ensureFinishedHire('seed-hire-marta-2', rosa.id, marta, juan, 45, 38),
+    await ensureCompletedHire('seed-hire-marta-2', rosa.id, marta, juan, 45, 38),
     juan,
     marta.account,
     3,
@@ -471,7 +471,7 @@ async function seed() {
     'Todo bien, con algunos cambios de agenda de último momento.',
   );
   await ensureReviewPair(
-    await ensureFinishedHire('seed-hire-carlos-1', ernesto.id, carlos, juan, 40, 33),
+    await ensureCompletedHire('seed-hire-carlos-1', ernesto.id, carlos, juan, 40, 33),
     juan,
     carlos.account,
     5,

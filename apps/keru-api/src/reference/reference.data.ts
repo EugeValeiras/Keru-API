@@ -23,7 +23,17 @@ export const ACCOUNT_ROLES = ['patient', 'family', 'caregiver', 'admin'] as cons
 
 export const LINK_ROLES = ['consent-holder', 'manager', 'viewer'] as const;
 
-export const HIRING_STATES = ['pending', 'accepted', 'declined', 'in-progress', 'finished'] as const;
+export const HIRING_STATES = ['pending', 'accepted', 'declined', 'in-progress', 'completed'] as const;
+
+/** Razones terminales del cierre del servicio (NFR-12, Decouple row 49; enum extensible — KER-32). */
+export const HIRING_TERMINAL_REASONS = [
+  'completed',
+  'cancelled-by-requester',
+  'cancelled-by-caregiver',
+  'cancelled-by-admin',
+  'no-show',
+  'end-of-life',
+] as const;
 
 export const VERIFICATION_BADGES = ['certifications', 'identity', 'background'] as const;
 
@@ -44,6 +54,7 @@ export const CATALOGS = {
   accountRoles: ACCOUNT_ROLES,
   linkRoles: LINK_ROLES,
   hiringStates: HIRING_STATES,
+  hiringTerminalReasons: HIRING_TERMINAL_REASONS,
   verificationBadges: VERIFICATION_BADGES,
   metrics: METRIC_CATALOG,
 };

@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Caregiver } from '@keru/membership';
-import { HiringRequest } from '../../resource-access/entities/hiring-request.entity';
+import {
+  HIRING_TERMINAL_REASONS,
+  HiringRequest,
+} from '../../resource-access/entities/hiring-request.entity';
 import { Assignment } from '../../resource-access/entities/assignment.entity';
 
 /** Tarjeta de cuidador en el listado (UC-06). */
@@ -83,7 +86,16 @@ export class RequestResponseDto {
       'Datos de contacto del solicitante. Para el cuidador solo con solicitud aceptada/en curso (UC-10).',
   })
   contactData?: Record<string, unknown>;
-  @ApiProperty({ enum: ['pending', 'accepted', 'declined', 'cancelled', 'in-progress', 'finished', 'expired'] }) status!: string;
+  @ApiProperty({ enum: ['pending', 'accepted', 'declined', 'cancelled', 'in-progress', 'completed', 'expired'] }) status!: string;
+  @ApiPropertyOptional({
+    enum: HIRING_TERMINAL_REASONS,
+    description: 'Razón terminal del cierre del servicio (Decouple row 49); solo en estados terminales de servicio.',
+  })
+  terminalReason?: string;
+  @ApiPropertyOptional({
+    description: 'Honor-mark de pago declarado por el solicitante tras el cierre (opcional, NFR-10/58).',
+  })
+  paidDeclaredAt?: Date;
   @ApiProperty({ description: 'Tarifa pinneada al solicitar (NFR-03/23)' }) ratePerHourSnapshot!: string;
 
   static from(r: HiringRequest, view: RequestViewOptions): RequestResponseDto {
@@ -101,6 +113,8 @@ export class RequestResponseDto {
       specialRequirements: r.specialRequirements ?? undefined,
       contactData: contactVisible ? r.contactData : undefined,
       status: r.status,
+      terminalReason: r.terminalReason ?? undefined,
+      paidDeclaredAt: r.paidDeclaredAt ?? undefined,
       ratePerHourSnapshot: r.ratePerHourSnapshot,
     };
   }

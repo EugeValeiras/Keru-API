@@ -17,7 +17,8 @@ export interface Reputation {
 
 /**
  * ReputationManager (constitution §3.1). Reseñas bidireccionales: elegibilidad por servicio
- * finalizado, una por servicio (inmutable, I5), sellado hasta el reveal simultáneo (NFR-21),
+ * completado — la razón terminal `completed`, nunca el honor-mark de pago (NFR-20, Decouple
+ * row 49) —, una por servicio (inmutable, I5), sellado hasta el reveal simultáneo (NFR-21),
  * agregados sobre reseñas visibles (NFR-22).
  */
 @Manager()
@@ -30,28 +31,28 @@ export class ReputationManager {
     private readonly audit: AuditUtility,
   ) {}
 
-  /** UC-17 · El solicitante califica al cuidador de un servicio finalizado. */
+  /** UC-17 · El solicitante califica al cuidador de un servicio completado. */
   async reviewCaregiver(
     requestId: string,
     authorAccountId: string,
     rating: number,
     comment?: string,
   ): Promise<Review> {
-    const request = await this.requireFinishedRequest(requestId);
+    const request = await this.requireCompletedRequest(requestId);
     if (request.requesterAccountId !== authorAccountId) {
       throw new ForbiddenException('Solo el solicitante del servicio puede reseñar al cuidador');
     }
     return this.submit(requestId, authorAccountId, 'caregiver', request.caregiverId, rating, comment);
   }
 
-  /** UC-21 · El cuidador califica al paciente de un servicio finalizado. */
+  /** UC-21 · El cuidador califica al paciente de un servicio completado. */
   async reviewPatient(
     requestId: string,
     caregiverAccountId: string,
     rating: number,
     comment?: string,
   ): Promise<Review> {
-    const request = await this.requireFinishedRequest(requestId);
+    const request = await this.requireCompletedRequest(requestId);
     const caregiver = await this.caregiverAccess.findByAccountId(caregiverAccountId);
     if (!caregiver || caregiver.id !== request.caregiverId) {
       throw new ForbiddenException('Solo el cuidador del servicio puede reseñar al paciente');
@@ -124,11 +125,12 @@ export class ReputationManager {
     return (await this.reviewAccess.findByRequestAndAuthor(requestId, authorAccountId))!;
   }
 
-  private async requireFinishedRequest(requestId: string) {
+  /** NFR-20: la elegibilidad la da el servicio completado; el honor-mark de pago no participa. */
+  private async requireCompletedRequest(requestId: string) {
     const request = await this.hiringAccess.findRequestById(requestId);
     if (!request) throw new NotFoundException('Solicitud no encontrada');
-    if (request.status !== 'finished') {
-      throw new BadRequestException('Solo se puede reseñar un servicio finalizado');
+    if (request.status !== 'completed') {
+      throw new BadRequestException('Solo se puede reseñar un servicio completado');
     }
     return request;
   }

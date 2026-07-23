@@ -3,6 +3,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 /**
  * Ciclo de vida de la contratación (UC-09). `expired` = pendiente que venció (barrido, NFR-14).
  * `cancelled` = el solicitante la canceló mientras estaba pendiente (UC-09 A2; estado terminal).
+ * `completed` = servicio cerrado; el porqué vive en `terminalReason` (Decouple row 49).
  */
 export type HiringRequestStatus =
   | 'pending'
@@ -10,8 +11,24 @@ export type HiringRequestStatus =
   | 'declined'
   | 'cancelled'
   | 'in-progress'
-  | 'finished'
+  | 'completed'
   | 'expired';
+
+/**
+ * Razón terminal estructurada del cierre del servicio (NFR-12/56, Decouple row 49). Enum
+ * extensible: KER-32 (cancelación de asignación activa / no-show) y el estado end-of-life
+ * (NFR-12) producen las demás razones; hoy el único productor es el cierre por completado.
+ */
+export const HIRING_TERMINAL_REASONS = [
+  'completed',
+  'cancelled-by-requester',
+  'cancelled-by-caregiver',
+  'cancelled-by-admin',
+  'no-show',
+  'end-of-life',
+] as const;
+
+export type HiringTerminalReason = (typeof HIRING_TERMINAL_REASONS)[number];
 
 /**
  * Solicitud de contratación / booking (UC-09). Pertenece a UN paciente (I4). Fija los términos
@@ -66,6 +83,17 @@ export class HiringRequest {
 
   @Column({ type: 'timestamptz', nullable: true })
   decidedAt!: Date | null;
+
+  /** Por qué cerró el servicio (solo en estados terminales de servicio; NFR-12, Decouple row 49). */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  terminalReason!: HiringTerminalReason | null;
+
+  /**
+   * Honor-mark de pago (OQ-1): declaración opcional del solicitante posterior al cierre.
+   * No condiciona el cierre ni la elegibilidad de reseña (NFR-10/20/58).
+   */
+  @Column({ type: 'timestamptz', nullable: true })
+  paidDeclaredAt!: Date | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;

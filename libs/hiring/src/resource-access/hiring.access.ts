@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { ResourceAccess } from '@keru/core';
-import { HiringRequest, HiringRequestStatus } from './entities/hiring-request.entity';
+import {
+  HiringRequest,
+  HiringRequestStatus,
+  HiringTerminalReason,
+} from './entities/hiring-request.entity';
 import { Assignment } from './entities/assignment.entity';
 
 export interface CreateRequestInput {
@@ -61,6 +65,29 @@ export class HiringAccess {
   ): Promise<void> {
     const repo = manager ? manager.getRepository(HiringRequest) : this.requests;
     await repo.update(id, { status, decidedAt });
+  }
+
+  /** Cierre del servicio con razón terminal estructurada (Decouple row 49): el porqué viaja con el estado. */
+  async closeRequest(
+    id: string,
+    reason: HiringTerminalReason,
+    decidedAt: Date,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager ? manager.getRepository(HiringRequest) : this.requests;
+    await repo.update(id, { status: 'completed', terminalReason: reason, decidedAt });
+  }
+
+  /**
+   * Honor-mark de pago (OQ-1): set-una-sola-vez por precondición `paidDeclaredAt IS NULL`
+   * (at-most-once sin operationId, NFR-34). Devuelve true si esta llamada lo registró.
+   */
+  async declareRequestPaid(id: string, paidDeclaredAt: Date): Promise<boolean> {
+    const result = await this.requests.update(
+      { id, paidDeclaredAt: IsNull() },
+      { paidDeclaredAt },
+    );
+    return (result.affected ?? 0) > 0;
   }
 
   // --- Asignaciones ---
