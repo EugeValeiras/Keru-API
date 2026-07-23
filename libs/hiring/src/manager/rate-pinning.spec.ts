@@ -61,7 +61,10 @@ function makeManager(currentRate: number) {
     },
     audit: { record: jest.fn() },
     pubsub: { publish: jest.fn().mockResolvedValue({ id: 'evt-1' }), enqueue: jest.fn() },
-    reputation: { aggregatesFor: jest.fn().mockResolvedValue({}) },
+    reputation: {
+      aggregatesFor: jest.fn().mockResolvedValue({}),
+      myReviewsFor: jest.fn().mockResolvedValue({}),
+    },
   };
   const manager = new HiringManager(
     deps.tx as never,

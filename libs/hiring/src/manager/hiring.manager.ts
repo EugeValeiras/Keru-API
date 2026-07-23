@@ -9,6 +9,7 @@ import {
   Manager,
   AuditUtility,
   TransactionUtility,
+  OwnReview,
   REPUTATION_READER,
   RatingAggregate,
   ReputationReader,
@@ -38,6 +39,8 @@ export interface RequestWithNames {
   request: HiringRequest;
   patientName?: string;
   caregiverName?: string;
+  /** Reseña que el viewer ya dejó sobre este servicio, si existe (UC-16, KER-39). */
+  myReview?: OwnReview;
 }
 
 export interface AcceptResult {
@@ -203,7 +206,12 @@ export class HiringManager {
   async listMyRequests(requesterAccountId: string): Promise<RequestWithNames[]> {
     const requests = await this.hiringAccess.listRequestsForRequester(requesterAccountId);
     const names = await this.caregiverNames(requests.map((r) => r.caregiverId));
-    return requests.map((r) => ({ request: r, caregiverName: names.get(r.caregiverId) }));
+    const myReviews = await this.myReviews(requests, requesterAccountId);
+    return requests.map((r) => ({
+      request: r,
+      caregiverName: names.get(r.caregiverId),
+      myReview: myReviews[r.id],
+    }));
   }
 
   // --- UC-10 · Aceptar / rechazar (cuidador) ---
@@ -211,7 +219,21 @@ export class HiringManager {
     const caregiver = await this.requireCaregiverByAccount(caregiverAccountId);
     const requests = await this.hiringAccess.listRequestsForCaregiver(caregiver.id);
     const names = await this.patientNames(requests.map((r) => r.patientId));
-    return requests.map((r) => ({ request: r, patientName: names.get(r.patientId) }));
+    const myReviews = await this.myReviews(requests, caregiverAccountId);
+    return requests.map((r) => ({
+      request: r,
+      patientName: names.get(r.patientId),
+      myReview: myReviews[r.id],
+    }));
+  }
+
+  /** Reseñas ya dejadas por el viewer, en bloque (KER-39). Solo los completados pueden tenerlas (NFR-20). */
+  private myReviews(
+    requests: HiringRequest[],
+    viewerAccountId: string,
+  ): Promise<Record<string, OwnReview>> {
+    const completedIds = requests.filter((r) => r.status === 'completed').map((r) => r.id);
+    return this.reputation.myReviewsFor(completedIds, viewerAccountId);
   }
 
   /** Nombres de pacientes por id (réplica de solo-lectura de Membership), deduplicado. */

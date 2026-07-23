@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { ResourceAccess } from '@keru/core';
 import { Review, ReviewSubject } from './entities/review.entity';
 
@@ -35,6 +35,12 @@ export class ReviewAccess {
 
   findByRequestAndAuthor(requestId: string, authorAccountId: string): Promise<Review | null> {
     return this.reviews.findOne({ where: { requestId, authorAccountId } });
+  }
+
+  /** Reseñas de un autor sobre N servicios en bloque (cards de UC-09/10 sin N+1). */
+  listByRequestsAndAuthor(requestIds: string[], authorAccountId: string): Promise<Review[]> {
+    if (requestIds.length === 0) return Promise.resolve([]);
+    return this.reviews.find({ where: { requestId: In(requestIds), authorAccountId } });
   }
 
   /** La otra reseña del mismo servicio (contraparte). */

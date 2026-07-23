@@ -3968,6 +3968,23 @@
           "contactData"
         ]
       },
+      "MyReviewDto": {
+        "type": "object",
+        "properties": {
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "rating"
+        ]
+      },
       "RequestResponseDto": {
         "type": "object",
         "properties": {
@@ -4046,6 +4063,14 @@
           "ratePerHourSnapshot": {
             "type": "string",
             "description": "Tarifa pinneada al solicitar (NFR-03/23)"
+          },
+          "myReview": {
+            "description": "La reseña que el viewer ya dejó sobre este servicio, si existe (UC-16: una por parte, KER-39). Siempre visible para su autor, incluso sellada (NFR-21).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MyReviewDto"
+              }
+            ]
           }
         },
         "required": [
@@ -4215,6 +4240,14 @@
           "ratePerHourSnapshot": {
             "type": "string",
             "description": "Tarifa pinneada al solicitar (NFR-03/23)"
+          },
+          "myReview": {
+            "description": "La reseña que el viewer ya dejó sobre este servicio, si existe (UC-16: una por parte, KER-39). Siempre visible para su autor, incluso sellada (NFR-21).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MyReviewDto"
+              }
+            ]
           },
           "rateDiff": {
             "$ref": "#/components/schemas/RehireRateDiffDto"
