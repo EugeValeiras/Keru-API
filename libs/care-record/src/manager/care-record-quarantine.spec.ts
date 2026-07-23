@@ -79,7 +79,11 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     },
     alertAccess: {
       createAlert: jest.fn().mockResolvedValue({ id: 'alert-1' }),
-      createNotification: jest.fn().mockResolvedValue(undefined),
+      createNotification: jest.fn(async (input: { recipientAccountId: string }) => ({
+        id: `n-${input.recipientAccountId}`,
+      })),
+      supersedePriorUnacked: jest.fn().mockResolvedValue(0),
+      recordDeliveryOutcome: jest.fn().mockResolvedValue(undefined),
     },
     alertEngine: { evaluateVital: jest.fn().mockReturnValue({ outOfRange: false }) },
     accountAccess: {
@@ -101,7 +105,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     },
     pushTransport: {
       getPublicKey: jest.fn().mockReturnValue(null),
-      deliver: jest.fn().mockResolvedValue([]),
+      deliver: jest.fn().mockResolvedValue({ attempted: false, delivered: [], failed: [], stale: [] }),
     },
     ...overrides,
   };

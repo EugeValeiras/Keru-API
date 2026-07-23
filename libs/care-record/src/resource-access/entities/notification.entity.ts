@@ -7,9 +7,18 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 /**
  * Índice por patrón de acceso de la campana: unreadCount usa el prefijo (recipient, read);
  * la lista usa el prefijo (recipient) y ordena — pocas filas por destinatario.
+ *
+ * KER-34 (NFR-27): unique parcial (alertId, recipientAccountId) — el fan-out de una alerta es
+ * idempotente por constraint: una misma alerta jamás duplica la campana de un destinatario
+ * (un retry del outbox o una escalación no crean campana nueva). Parcial: las notificaciones
+ * sin alerta (note/hiring/quarantine) sí pueden repetirse por destinatario.
  */
 @Entity({ name: 'notification' })
 @Index(['recipientAccountId', 'read', 'createdAt'])
+@Index('UQ_notification_alert_recipient', ['alertId', 'recipientAccountId'], {
+  unique: true,
+  where: '"alertId" IS NOT NULL',
+})
 export class Notification {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -34,6 +43,10 @@ export class Notification {
 
   @Column({ type: 'boolean', default: false })
   read!: boolean;
+
+  /** Acuse (NFR-11): momento del PRIMER read — entregada ≠ vista; re-leer no lo mueve. */
+  @Column({ type: 'timestamptz', nullable: true })
+  readAt!: Date | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;

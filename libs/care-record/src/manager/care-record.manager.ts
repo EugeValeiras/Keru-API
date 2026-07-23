@@ -28,10 +28,18 @@ export type RecordOutcome =
   | { outcome: 'recorded'; record: ClinicalRecord }
   | { outcome: 'quarantined'; quarantined: QuarantinedRecord };
 
+/** Destinatario de un push pendiente: cuenta + su notificación de campana (para el outcome, NFR-26). */
+interface PushRecipient {
+  accountId: string;
+  notificationId: string;
+}
+
 /** Push pendiente: se despacha DESPUÉS del commit — la campana es la garantía (§2.7). */
 interface PendingPush {
-  recipients: string[];
+  recipients: PushRecipient[];
   payload: PushPayload;
+  /** Detalle a persistir con el outcome (p. ej. 'escalación' — KER-34). */
+  outcomeDetail?: string;
 }
 
 /** Evento `hiring.assignment.closed` (KER-32): cierre de asignación activa (cancelación / no-show). */
@@ -126,16 +134,19 @@ export class CareRecordManager implements OnApplicationBootstrap {
     if (recipients.length === 0) return;
 
     const { title, body } = this.hiringClosureMessage(event);
-    await this.tx.run(async (em) => {
+    const pushRecipients = await this.tx.run(async (em) => {
+      const created: PushRecipient[] = [];
       for (const recipientAccountId of recipients) {
-        await this.alertAccess.createNotification(
+        const notification = await this.alertAccess.createNotification(
           { recipientAccountId, patientId: event.patientId, alertId: null, type: 'hiring', title, body },
           em,
         );
+        created.push({ accountId: recipientAccountId, notificationId: notification.id });
       }
+      return created;
     });
     await this.dispatchPush([
-      { recipients, payload: { type: 'hiring', patientId: event.patientId, title, body } },
+      { recipients: pushRecipients, payload: { type: 'hiring', patientId: event.patientId, title, body } },
     ]);
   }
 
@@ -483,6 +494,11 @@ export class CareRecordManager implements OnApplicationBootstrap {
         },
         em,
       );
+      // KER-34 (anti-T7): la alerta nueva supersede a las críticas NO acusadas del mismo
+      // (paciente, métrica) — salen del circuito de escalación en la misma transacción.
+      if (evaluation.severity === 'critical') {
+        await this.alertAccess.supersedePriorUnacked(patientId, v.metricKey, alert.id, em);
+      }
       pendingPush.push(
         await this.notifyCircle(em, patientId, record.authorAccountId, {
           alertId: alert.id,
@@ -492,6 +508,44 @@ export class CareRecordManager implements OnApplicationBootstrap {
         }),
       );
     }
+  }
+
+  /**
+   * KER-34 · Barrido de escalación (NFR-11/26): reclama las alertas críticas sin acuse de nadie
+   * del círculo más viejas que el umbral (claim pattern: cada alerta escala UNA vez, multi-
+   * instancia-safe) y re-notifica al círculo POR PUSH. La campana no se duplica: la notificación
+   * original sigue sin leer y el unique (alerta, destinatario) lo garantiza (NFR-27). Las
+   * superseded jamás se reclaman — el age-out es el claim (anti-T7).
+   */
+  async sweepAlertEscalation(thresholdMinutes: number): Promise<{ escalated: number }> {
+    const cutoff = new Date(Date.now() - thresholdMinutes * 60_000);
+    const claimed = await this.alertAccess.claimEscalatable(cutoff);
+
+    let escalated = 0;
+    for (const alert of claimed) {
+      const notifications = await this.alertAccess.listNotificationsForAlert(alert.id);
+      if (notifications.length === 0) continue;
+      await this.dispatchPush([
+        {
+          recipients: notifications.map((n) => ({ accountId: n.recipientAccountId, notificationId: n.id })),
+          payload: {
+            type: 'alert',
+            patientId: alert.patientId,
+            title: '⚠️ Alerta crítica sin atender',
+            body: `Sin acuse en ${thresholdMinutes} min: ${alert.message}`.slice(0, 500),
+          },
+          outcomeDetail: 'escalación',
+        },
+      ]);
+      await this.audit.record({
+        action: 'care-record.alert.escalated',
+        actor: 'system',
+        target: { type: 'alert', id: alert.id },
+        metadata: { patientId: alert.patientId, metricKey: alert.metricKey, thresholdMinutes },
+      });
+      escalated++;
+    }
+    return { escalated };
   }
 
   /** UC-12 A3: solo consent-holder o manager resuelven; el item debe ser del paciente. */
@@ -520,14 +574,16 @@ export class CareRecordManager implements OnApplicationBootstrap {
     payload: { alertId: string | null; type: string; title: string; body: string },
   ): Promise<PendingPush> {
     const links = await this.accountAccess.listLinksForPatient(patientId);
+    const recipients: PushRecipient[] = [];
     for (const link of links) {
-      await this.alertAccess.createNotification(
+      const notification = await this.alertAccess.createNotification(
         { recipientAccountId: link.accountId, patientId, ...payload },
         em,
       );
+      recipients.push({ accountId: link.accountId, notificationId: notification.id });
     }
     return {
-      recipients: links.map((l) => l.accountId),
+      recipients,
       payload: { type: payload.type, patientId, title: payload.title, body: payload.body },
     };
   }
@@ -536,14 +592,42 @@ export class CareRecordManager implements OnApplicationBootstrap {
    * UC-18 flujo 5: push best-effort a los suscriptos, después del commit. Cualquier falla se
    * loguea y se traga — la campana ya registró todo (constitution §2.7, NFR-09). Endpoints
    * muertos (404/410) se depuran acá.
+   *
+   * KER-34 (NFR-26): persiste el outcome REAL del push por destinatario — delivered si algún
+   * endpoint suyo aceptó el envío, failed si todos fallaron. Sin suscripciones no hay intento
+   * (y no hay outcome): la campana es el canal garantizado.
    */
   private async dispatchPush(pending: PendingPush[]): Promise<void> {
     for (const p of pending) {
       try {
-        const subscriptions = await this.pushSubscriptions.listForAccounts(p.recipients);
+        const accountIds = p.recipients.map((r) => r.accountId);
+        const subscriptions = await this.pushSubscriptions.listForAccounts(accountIds);
         if (subscriptions.length === 0) continue;
-        const stale = await this.pushTransport.deliver(subscriptions, p.payload);
-        await this.pushSubscriptions.removeStaleEndpoints(stale);
+        const report = await this.pushTransport.deliver(subscriptions, p.payload);
+        await this.pushSubscriptions.removeStaleEndpoints(report.stale);
+        if (!report.attempted) continue;
+
+        const deliveredByAccount = new Map<string, { delivered: number; total: number }>();
+        for (const sub of subscriptions) {
+          const state = deliveredByAccount.get(sub.accountId) ?? { delivered: 0, total: 0 };
+          state.total++;
+          if (report.delivered.includes(sub.endpoint)) state.delivered++;
+          deliveredByAccount.set(sub.accountId, state);
+        }
+        for (const recipient of p.recipients) {
+          const state = deliveredByAccount.get(recipient.accountId);
+          if (!state) continue; // sin suscripciones: no hubo intento de push para esta cuenta
+          const ok = state.delivered > 0;
+          const detail = [p.outcomeDetail, `${state.delivered}/${state.total} endpoints`]
+            .filter(Boolean)
+            .join(' · ');
+          await this.alertAccess.recordDeliveryOutcome({
+            notificationId: recipient.notificationId,
+            channel: 'push',
+            status: ok ? 'delivered' : 'failed',
+            detail,
+          });
+        }
       } catch (err) {
         this.logger.warn(`Push no entregado (${(err as Error).message}); la campana ya registró la notificación`);
       }

@@ -20,9 +20,11 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     quarantineAccess: {},
     rangeAccess: {},
     alertAccess: {
-      createNotification: jest.fn(async () => {
+      createNotification: jest.fn(async (input: { recipientAccountId: string }) => {
         calls.push('bell');
+        return { id: `n-${input.recipientAccountId}` };
       }),
+      recordDeliveryOutcome: jest.fn().mockResolvedValue(undefined),
     },
     alertEngine: {},
     accountAccess: {},
@@ -35,7 +37,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     pushTransport: {
       deliver: jest.fn(async () => {
         calls.push('push');
-        return [] as string[];
+        return { attempted: true, delivered: [], failed: [], stale: [] };
       }),
     },
     ...overrides,

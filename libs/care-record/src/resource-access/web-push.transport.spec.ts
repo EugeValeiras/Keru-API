@@ -33,18 +33,23 @@ const payload = { type: 'alert', patientId: 'pat-1', title: 'Alerta clínica', b
 describe('WebPushTransport', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('sin claves VAPID queda deshabilitado: publicKey null y deliver no envía nada', async () => {
+  it('sin claves VAPID queda deshabilitado: publicKey null y deliver no intenta nada', async () => {
     const transport = new WebPushTransport(config({}));
     expect(transport.getPublicKey()).toBeNull();
-    expect(await transport.deliver([sub()], payload)).toEqual([]);
+    expect(await transport.deliver([sub()], payload)).toEqual({
+      attempted: false,
+      delivered: [],
+      failed: [],
+      stale: [],
+    });
     expect(webpush.sendNotification).not.toHaveBeenCalled();
   });
 
-  it('con claves configura VAPID y envía el payload JSON a cada suscripción', async () => {
+  it('con claves configura VAPID, envía el payload JSON a cada suscripción y reporta delivered (NFR-26)', async () => {
     const transport = new WebPushTransport(config({ VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' }));
     (webpush.sendNotification as jest.Mock).mockResolvedValue({ statusCode: 201 });
 
-    const stale = await transport.deliver([sub(), sub({ endpoint: 'https://push.test/sub-2' })], payload);
+    const report = await transport.deliver([sub(), sub({ endpoint: 'https://push.test/sub-2' })], payload);
 
     expect(transport.getPublicKey()).toBe('pub');
     expect(webpush.setVapidDetails).toHaveBeenCalledWith('mailto:no-reply@keru.app', 'pub', 'priv');
@@ -54,22 +59,34 @@ describe('WebPushTransport', () => {
       JSON.stringify(payload),
       { timeout: 3000 },
     );
-    expect(stale).toEqual([]);
+    expect(report).toEqual({
+      attempted: true,
+      delivered: ['https://push.test/sub-1', 'https://push.test/sub-2'],
+      failed: [],
+      stale: [],
+    });
   });
 
-  it('un 410 Gone marca la suscripción como muerta para depurar; no lanza', async () => {
+  it('un 410 Gone marca la suscripción como muerta para depurar y cuenta como failed; no lanza', async () => {
     const transport = new WebPushTransport(config({ VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' }));
     (webpush.sendNotification as jest.Mock).mockRejectedValue(Object.assign(new Error('gone'), { statusCode: 410 }));
 
-    const stale = await transport.deliver([sub()], payload);
+    const report = await transport.deliver([sub()], payload);
 
-    expect(stale).toEqual(['https://push.test/sub-1']);
+    expect(report.stale).toEqual(['https://push.test/sub-1']);
+    expect(report.failed).toEqual(['https://push.test/sub-1']);
+    expect(report.delivered).toEqual([]);
   });
 
-  it('un error transitorio del push service se traga (la campana ya registró la alerta)', async () => {
+  it('un error transitorio del push service se traga y queda como failed (la campana ya registró la alerta)', async () => {
     const transport = new WebPushTransport(config({ VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' }));
     (webpush.sendNotification as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
 
-    await expect(transport.deliver([sub()], payload)).resolves.toEqual([]);
+    await expect(transport.deliver([sub()], payload)).resolves.toEqual({
+      attempted: true,
+      delivered: [],
+      failed: ['https://push.test/sub-1'],
+      stale: [],
+    });
   });
 });

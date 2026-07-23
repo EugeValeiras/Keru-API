@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as webpush from 'web-push';
 import { ResourceAccess } from '@keru/core';
-import { NotificationTransport, PushPayload } from './notification-transport';
+import { NotificationTransport, PushDeliveryReport, PushPayload } from './notification-transport';
 import { PushSubscription } from './entities/push-subscription.entity';
 
 /**
@@ -36,10 +36,14 @@ export class WebPushTransport extends NotificationTransport {
     return this.publicKey;
   }
 
-  async deliver(subscriptions: PushSubscription[], payload: PushPayload): Promise<string[]> {
-    if (!this.enabled || subscriptions.length === 0) return [];
+  async deliver(subscriptions: PushSubscription[], payload: PushPayload): Promise<PushDeliveryReport> {
+    if (!this.enabled || subscriptions.length === 0) {
+      return { attempted: false, delivered: [], failed: [], stale: [] };
+    }
 
     const body = JSON.stringify(payload);
+    const delivered: string[] = [];
+    const failed: string[] = [];
     const stale: string[] = [];
     await Promise.all(
       subscriptions.map(async (sub) => {
@@ -49,7 +53,9 @@ export class WebPushTransport extends NotificationTransport {
             body,
             { timeout: 3000 },
           );
+          delivered.push(sub.endpoint);
         } catch (err) {
+          failed.push(sub.endpoint);
           const statusCode = (err as { statusCode?: number }).statusCode;
           if (statusCode === 404 || statusCode === 410) {
             stale.push(sub.endpoint);
@@ -61,6 +67,6 @@ export class WebPushTransport extends NotificationTransport {
         }
       }),
     );
-    return stale;
+    return { attempted: true, delivered, failed, stale };
   }
 }
