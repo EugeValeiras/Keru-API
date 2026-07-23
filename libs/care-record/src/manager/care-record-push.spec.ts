@@ -64,7 +64,9 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     quarantineAccess: { findByOperationId: jest.fn().mockResolvedValue(null) },
     rangeAccess: {
       getPlausible: jest.fn().mockReturnValue({ min: 0, max: 400, unit: 'bpm' }),
-      getApplicableRange: jest.fn().mockReturnValue({ metricKey: 'heart-rate', min: 50, max: 110, unit: 'bpm', version: 1 }),
+      getApplicableRange: jest
+        .fn()
+        .mockResolvedValue({ metricKey: 'heart-rate', min: 50, max: 110, unit: 'bpm', version: 'rv-1' }),
     },
     alertAccess: {
       createAlert: jest.fn().mockResolvedValue({ id: 'alert-1' }),
@@ -80,6 +82,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
         { accountId: 'acc-fam', role: 'consent-holder' },
         { accountId: 'acc-fam-2', role: 'viewer' },
       ]),
+      findPatientById: jest.fn().mockResolvedValue({ id: 'pat-1', birthDate: '1948-03-15' }),
     },
     permission: { classifyClinicalWrite: jest.fn().mockResolvedValue('authorized') },
     audit: { record: jest.fn() },

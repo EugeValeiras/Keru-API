@@ -4,13 +4,15 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnApplicationBootstrap,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { Manager, AuditUtility, AuthPrincipal, PermissionEngine, TransactionUtility } from '@keru/core';
 import { AccountAccess } from '@keru/membership';
+import { METRIC_DEFINITIONS } from '../metric-definitions';
 import { CareRecordAccess } from '../resource-access/care-record.access';
-import { RangeAccess } from '../resource-access/range.access';
+import { ageInYearsAt, RangeAccess } from '../resource-access/range.access';
 import { AlertAccess } from '../resource-access/alert.access';
 import { QuarantineAccess } from '../resource-access/quarantine.access';
 import { PushSubscriptionAccess } from '../resource-access/push-subscription.access';
@@ -38,9 +40,12 @@ interface PendingPush {
  * obligación de alerta (Decouple row 35); notificación al círculo (campana, I6).
  * Llegada tardía no autorizada → cuarentena, nunca descarte silencioso (UC-12 A3, NFR-30).
  */
+/** Vigencia del seed de defaults: epoch, para que cualquier measuredAt histórico resuelva versión. */
+const SEED_EFFECTIVE_FROM = new Date('1970-01-01T00:00:00Z');
+
 @Manager()
 @Injectable()
-export class CareRecordManager {
+export class CareRecordManager implements OnApplicationBootstrap {
   private readonly logger = new Logger(CareRecordManager.name);
 
   constructor(
@@ -56,6 +61,46 @@ export class CareRecordManager {
     private readonly pushSubscriptions: PushSubscriptionAccess,
     private readonly pushTransport: NotificationTransport,
   ) {}
+
+  onApplicationBootstrap(): Promise<void> {
+    return this.ensureSystemRangeDefaults();
+  }
+
+  /**
+   * Seed de los defaults del sistema (NFR-17/28): garantiza que toda métrica del catálogo tenga
+   * su versión de rango system-default en DB. Append-only e idempotente (at-most-once por
+   * operationId): en una base migrada el seed ya existe por la migración y esto es un no-op;
+   * en bases dev/e2e con `synchronize` es quien materializa los defaults. Audita solo los
+   * inserts reales. Los VALORES nunca se editan acá: un cambio de rango es una versión nueva
+   * (y su flujo de configuración queda diferido — NFR-29, UC-18/NFR-18).
+   */
+  async ensureSystemRangeDefaults(): Promise<void> {
+    for (const def of Object.values(METRIC_DEFINITIONS)) {
+      const { created, version } = await this.rangeAccess.appendVersion(
+        {
+          metricKey: def.key,
+          scope: 'system-default',
+          ageMinYears: null,
+          ageMaxYears: null,
+          min: def.defaultRange.min,
+          max: def.defaultRange.max,
+          unit: def.unit,
+          effectiveFrom: SEED_EFFECTIVE_FROM,
+          authorAccountId: null,
+          authorRole: null,
+        },
+        `seed-system-default-${def.key}`,
+      );
+      if (created) {
+        await this.audit.record({
+          action: 'care-record.range-version.seeded',
+          actor: 'system',
+          target: { type: 'range_version', id: version.id },
+          metadata: { metricKey: def.key, min: version.min, max: version.max, unit: version.unit },
+        });
+      }
+    }
+  }
 
   // --- UC-12 · Registrar signos vitales ---
   async recordVitals(patientId: string, dto: RecordVitalsDto, principal: AuthPrincipal): Promise<RecordOutcome> {
@@ -332,7 +377,12 @@ export class CareRecordManager {
     return result;
   }
 
-  /** Evalúa cada valor contra su rango y, si está fuera, alerta al círculo (atómico con el registro). */
+  /**
+   * Evalúa cada valor contra su rango y, si está fuera, alerta al círculo (atómico con el registro).
+   * El rango se resuelve con asOf = measuredAt del registro y el estrato etario del paciente a esa
+   * fecha (NFR-17); la alerta persiste el id real de la versión aplicada (NFR-28). Como la
+   * cuarentena aprobada re-evalúa con su measuredAt ORIGINAL, el replay es determinista (NFR-36).
+   */
   private async evaluateVitalsAndAlert(
     em: EntityManager,
     patientId: string,
@@ -340,8 +390,18 @@ export class CareRecordManager {
     pendingPush: PendingPush[],
   ): Promise<void> {
     const values = (record.data as { values?: { metricKey: string; value: number }[] }).values ?? [];
+    if (values.length === 0) return;
+
+    // Lectura cross-dominio permitida: réplica de solo-lectura de Membership (constitution §3.5).
+    const patient = await this.accountAccess.findPatientById(patientId);
+    if (!patient) throw new NotFoundException('Paciente no encontrado');
+    const ageYears = ageInYearsAt(patient.birthDate, record.measuredAt);
+
     for (const v of values) {
-      const range = this.rangeAccess.getApplicableRange(v.metricKey, patientId);
+      const range = await this.rangeAccess.getApplicableRange(v.metricKey, {
+        ageYears,
+        asOf: record.measuredAt,
+      });
       const evaluation = this.alertEngine.evaluateVital(v.value, range);
       if (!evaluation.outOfRange) continue;
 
