@@ -1,7 +1,14 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthPrincipal, CurrentAccount, JwtAuthGuard, THROTTLE_LIMITS, THROTTLE_TTL_MS } from '@keru/core';
+import {
+  AllowPendingPassword,
+  AuthPrincipal,
+  CurrentAccount,
+  JwtAuthGuard,
+  THROTTLE_LIMITS,
+  THROTTLE_TTL_MS,
+} from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import {
   AuthResponseDto,
@@ -11,6 +18,7 @@ import {
   PasswordResetConfirmDto,
   PasswordResetRequestDto,
   PasswordResetRequestResponseDto,
+  SetPasswordDto,
   SignupDto,
   StepUpDto,
   StepUpResponseDto,
@@ -78,6 +86,23 @@ export class AuthController {
   @ApiOkResponse({ type: AuthResponseDto })
   confirmPasswordReset(@Body() dto: PasswordResetConfirmDto): Promise<AuthResponseDto> {
     return this.membership.confirmPasswordReset(dto);
+  }
+
+  @Post('set-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @AllowPendingPassword()
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'UC-04 A5 · Primer acceso: definir la contraseña (sesión limitada MUST_SET_PASSWORD). Auto-loguea con sesión completa; 409 si la cuenta ya tiene contraseña',
+  })
+  @ApiOkResponse({ type: AuthResponseDto })
+  setPassword(
+    @CurrentAccount() account: AuthPrincipal,
+    @Body() dto: SetPasswordDto,
+  ): Promise<AuthResponseDto> {
+    return this.membership.setFirstLoginPassword(account, dto.newPassword);
   }
 
   @Post('step-up')

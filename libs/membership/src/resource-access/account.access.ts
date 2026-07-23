@@ -25,7 +25,8 @@ export interface CreateInvitationInput {
 
 export interface CreateAccountInput {
   email: string;
-  passwordHash: string;
+  /** null cuando el alta es por invitación sin registro (UC-04 A5): la cuenta define su contraseña en el primer acceso. */
+  passwordHash: string | null;
   role: AccountRole;
   displayName: string;
 }
@@ -137,8 +138,9 @@ export class AccountAccess {
   /** Crea una cuenta. El email es único: lanza si ya existe (el Manager lo mapea a 409). */
   // operation-identity: exempt — at-most-once garantizado por unique(email): el
   // retry tras un éxito con respuesta perdida da 409, nunca una cuenta duplicada.
-  createAccount(input: CreateAccountInput): Promise<Account> {
-    return this.accounts.save(this.accounts.create(input));
+  createAccount(input: CreateAccountInput, manager?: EntityManager): Promise<Account> {
+    const repo = manager ? manager.getRepository(Account) : this.accounts;
+    return repo.save(repo.create(input));
   }
 
   findAccountByEmail(email: string): Promise<Account | null> {

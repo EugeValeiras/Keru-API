@@ -1,10 +1,13 @@
 import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { StepUpGuard, STEP_UP_REQUIRED } from './step-up.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { MUST_SET_PASSWORD } from './allow-pending-password.decorator';
 
 /**
  * KER-38 · Guards de sesión (NFR-33/41): StepUpGuard exige el token corto con claim step_up
  * de la MISMA cuenta y audita cada uso; JwtAuthGuard rechaza tokens deslistados por logout.
+ * KER-47 (UC-04 A5): JwtAuthGuard bloquea con 403 MUST_SET_PASSWORD la sesión limitada de una
+ * cuenta sin contraseña definida, salvo la ruta marcada @AllowPendingPassword.
  */
 
 const ctx = (headers: Record<string, string>, account?: { accountId: string }): ExecutionContext =>
@@ -12,7 +15,12 @@ const ctx = (headers: Record<string, string>, account?: { accountId: string }): 
     switchToHttp: () => ({
       getRequest: () => ({ headers, account, method: 'POST', url: '/x', originalUrl: '/x' }),
     }),
+    getHandler: () => undefined,
+    getClass: () => undefined,
   }) as unknown as ExecutionContext;
+
+/** Reflector stub: por defecto la ruta NO está exenta (getAllAndOverride → false). */
+const reflectorStub = (allowsPending = false) => ({ getAllAndOverride: jest.fn().mockReturnValue(allowsPending) });
 
 const codeOf = (e: unknown): string | undefined =>
   ((e as ForbiddenException).getResponse() as { code?: string }).code;
@@ -75,7 +83,7 @@ describe('JwtAuthGuard + denylist (NFR-41)', () => {
       isRevoked: jest.fn().mockResolvedValue(true),
       isAccountSessionRevoked: jest.fn().mockResolvedValue(false),
     };
-    const guard = new JwtAuthGuard(jwt as never, revocation as never);
+    const guard = new JwtAuthGuard(jwt as never, revocation as never, reflectorStub() as never);
     await expect(guard.canActivate(ctx({ authorization: 'Bearer t' }))).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
@@ -88,7 +96,7 @@ describe('JwtAuthGuard + denylist (NFR-41)', () => {
       isRevoked: jest.fn().mockResolvedValue(false),
       isAccountSessionRevoked: jest.fn().mockResolvedValue(true),
     };
-    const guard = new JwtAuthGuard(jwt as never, revocation as never);
+    const guard = new JwtAuthGuard(jwt as never, revocation as never, reflectorStub() as never);
     await expect(guard.canActivate(ctx({ authorization: 'Bearer t' }))).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
@@ -101,14 +109,41 @@ describe('JwtAuthGuard + denylist (NFR-41)', () => {
       isRevoked: jest.fn().mockResolvedValue(false),
       isAccountSessionRevoked: jest.fn().mockResolvedValue(false),
     };
-    const guard = new JwtAuthGuard(jwt as never, revocation as never);
+    const guard = new JwtAuthGuard(jwt as never, revocation as never, reflectorStub() as never);
     const request: { account?: { jti?: string; tokenExp?: number } } = {};
     const context = {
       switchToHttp: () => ({
         getRequest: () => Object.assign(request, { headers: { authorization: 'Bearer t' } }),
       }),
+      getHandler: () => undefined,
+      getClass: () => undefined,
     } as unknown as ExecutionContext;
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request.account).toMatchObject({ accountId: 'acc-1', jti: 'jti-1', tokenExp: 123 });
+  });
+});
+
+describe('JwtAuthGuard + first-login MUST_SET_PASSWORD (UC-04 A5)', () => {
+  const pendingPayload = { sub: 'acc-9', email: 'nuevo@test.com', role: 'family', jti: 'jti-9', mps: true };
+  const revocation = {
+    isRevoked: jest.fn().mockResolvedValue(false),
+    isAccountSessionRevoked: jest.fn().mockResolvedValue(false),
+  };
+
+  const codeOf = (e: unknown): string | undefined =>
+    ((e as ForbiddenException).getResponse() as { code?: string }).code;
+
+  it('Dada una sesión limitada (mps) en un endpoint de negocio, entonces 403 MUST_SET_PASSWORD', async () => {
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue(pendingPayload) };
+    const guard = new JwtAuthGuard(jwt as never, revocation as never, reflectorStub(false) as never);
+    const err = await guard.canActivate(ctx({ authorization: 'Bearer t' })).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(codeOf(err)).toBe(MUST_SET_PASSWORD);
+  });
+
+  it('Dada una sesión limitada (mps) en una ruta @AllowPendingPassword, entonces pasa', async () => {
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue(pendingPayload) };
+    const guard = new JwtAuthGuard(jwt as never, revocation as never, reflectorStub(true) as never);
+    await expect(guard.canActivate(ctx({ authorization: 'Bearer t' }))).resolves.toBe(true);
   });
 });
