@@ -55,6 +55,25 @@ export class EmailUtility {
     );
   }
 
+  /** UC-04 A4: link de recuperación de contraseña (token de un solo uso, mejor esfuerzo). */
+  async sendPasswordResetEmail(input: { to: string; token: string; expiresAt: Date }): Promise<void> {
+    const resetUrl = `${this.appBaseUrl}/password-reset/confirm?token=${input.token}`;
+    await this.send(
+      input.to,
+      'Recuperá tu contraseña de Keru',
+      [
+        `Hola,`,
+        ``,
+        `Recibimos un pedido para restablecer la contraseña de tu cuenta de Keru.`,
+        ``,
+        `Creá una nueva contraseña entrando acá: ${resetUrl}`,
+        ``,
+        `El link vence a los 30 minutos y sirve una sola vez.`,
+        `Si no pediste esto, podés ignorar este mensaje: tu contraseña no cambia hasta que uses el link.`,
+      ].join('\n'),
+    );
+  }
+
   private async send(to: string, subject: string, body: string): Promise<void> {
     await this.ensureIdentity();
     await this.client.send(

@@ -31,6 +31,10 @@ export class JwtAuthGuard implements CanActivate {
     if (await this.revocation.isRevoked(payload.jti)) {
       throw new UnauthorizedException('Token revocado: la sesión fue cerrada');
     }
+    // UC-04 A4: un reset de contraseña revoca todas las sesiones previas de la cuenta.
+    if (await this.revocation.isAccountSessionRevoked(payload.sub, payload.iat)) {
+      throw new UnauthorizedException('Sesión revocada: la contraseña de la cuenta fue cambiada');
+    }
     request.account = {
       accountId: payload.sub,
       email: payload.email,

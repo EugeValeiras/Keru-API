@@ -9,6 +9,7 @@ import { logJsonLine } from '../logging/json-log.util';
 interface RedisLike {
   set(key: string, value: string, px: 'PX', ttlMs: number): Promise<unknown>;
   exists(key: string): Promise<number>;
+  get(key: string): Promise<string | null>;
 }
 
 /**
@@ -26,12 +27,15 @@ interface RedisLike {
 export class TokenRevocationUtility {
   private readonly logger = new Logger(TokenRevocationUtility.name);
   private readonly prefix: string;
+  /** Techo de vida de la clave de corte por cuenta = vida del access token (JWT_EXPIRES). */
+  private readonly accountCutoffTtlMs: number;
 
   constructor(
     @InjectQueue(OUTBOX_QUEUE) private readonly queue: Queue,
     config: ConfigService,
   ) {
     this.prefix = config.get<string>('BULLMQ_PREFIX', 'bull');
+    this.accountCutoffTtlMs = parseDurationMs(config.get<string>('JWT_EXPIRES', '7d'));
   }
 
   /** Deslista el token hasta su expiración natural. TTL vencido o ausente: no hay nada que revocar. */
@@ -61,7 +65,72 @@ export class TokenRevocationUtility {
     }
   }
 
+  /**
+   * UC-04 A4 (reset de contraseña, NFR-41): revoca TODAS las sesiones vigentes de una cuenta de
+   * un plumazo, sin rastrear cada jti. Estampa un "corte" = ahora (epoch en segundos): el guard
+   * rechaza todo token con `iat` anterior al corte. TTL = vida del access token (pasado ese
+   * lapso ya no hay tokens vivos previos al corte, la clave se limpia sola).
+   *
+   * MEJOR ESFUERZO (fail-open, NFR-41): a diferencia de `revoke` (logout), acá la contraseña ya
+   * se cambió en la transacción; si Redis no responde, la revocación instantánea se pierde pero
+   * el techo sigue siendo la expiración natural del token — no se rompe el reset por eso.
+   */
+  async revokeAccountSessions(accountId: string): Promise<void> {
+    const cutoffEpochSeconds = Math.floor(Date.now() / 1000);
+    try {
+      const client = (await this.queue.client) as unknown as RedisLike;
+      await client.set(this.accountKey(accountId), String(cutoffEpochSeconds), 'PX', this.accountCutoffTtlMs);
+    } catch (error) {
+      logJsonLine({
+        level: 'warn',
+        event: 'auth.account-revocation.unavailable',
+        msg: 'Redis no responde: no se pudo revocar las sesiones de la cuenta (fail-open, NFR-41)',
+        accountId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      this.logger.warn(`no se pudo revocar las sesiones de la cuenta ${accountId} (fail-open)`);
+    }
+  }
+
+  /**
+   * Consulta del guard en cada request: ¿el token es anterior al corte de revocación por cuenta?
+   * (UC-04 A4). Sin `iat` legible no hay con qué comparar → se deja pasar. Falla abierta si Redis
+   * no responde (misma postura que la denylist de jti).
+   */
+  async isAccountSessionRevoked(accountId: string, iatEpochSeconds: number | undefined): Promise<boolean> {
+    if (!iatEpochSeconds) return false;
+    try {
+      const client = (await this.queue.client) as unknown as RedisLike;
+      const cutoff = await client.get(this.accountKey(accountId));
+      if (!cutoff) return false;
+      return iatEpochSeconds < Number(cutoff);
+    } catch (error) {
+      logJsonLine({
+        level: 'warn',
+        event: 'auth.account-revocation.unavailable',
+        msg: 'Redis no responde: el corte de sesiones por cuenta falla abierto (NFR-41)',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      this.logger.warn('corte de sesiones por cuenta no disponible: se deja pasar el token (fail-open)');
+      return false;
+    }
+  }
+
   private key(jti: string): string {
     return `${this.prefix}:jwt-denylist:${jti}`;
   }
+
+  private accountKey(accountId: string): string {
+    return `${this.prefix}:jwt-account-cutoff:${accountId}`;
+  }
+}
+
+/** Parsea duraciones estilo JWT (`7d`, `12h`, `15m`, `30s`) o segundos crudos a milisegundos. */
+function parseDurationMs(value: string): number {
+  const match = /^(\d+)\s*([dhms])?$/.exec(value.trim());
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  if (!match) return sevenDaysMs; // formato desconocido: techo defensivo de 7 días
+  const amount = Number(match[1]);
+  const unitMs = { d: 86_400_000, h: 3_600_000, m: 60_000, s: 1000 }[match[2] ?? 's'] ?? 1000;
+  return amount * unitMs;
 }

@@ -43,7 +43,13 @@ describe('KER-14 · login con más de N intentos/min devuelve 429 (config real)'
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         // KER-38: logout/step-up llevan JwtAuthGuard — stubs para que Nest resuelva el guard.
         { provide: JwtService, useValue: {} },
-        { provide: TokenRevocationUtility, useValue: { isRevoked: jest.fn().mockResolvedValue(false) } },
+        {
+          provide: TokenRevocationUtility,
+          useValue: {
+            isRevoked: jest.fn().mockResolvedValue(false),
+            isAccountSessionRevoked: jest.fn().mockResolvedValue(false),
+          },
+        },
       ],
     }).compile();
 

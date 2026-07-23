@@ -8,6 +8,9 @@ import {
   LoginDto,
   LogoutDto,
   LogoutResponseDto,
+  PasswordResetConfirmDto,
+  PasswordResetRequestDto,
+  PasswordResetRequestResponseDto,
   SignupDto,
   StepUpDto,
   StepUpResponseDto,
@@ -51,6 +54,30 @@ export class AuthController {
   ): Promise<LogoutResponseDto> {
     await this.membership.logout(account, dto.pushEndpoint);
     return { ok: true };
+  }
+
+  @Post('password-reset/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'UC-04 A4 · Pedir reset de contraseña: responde SIEMPRE 200 (anti-enumeración)',
+  })
+  @ApiOkResponse({ type: PasswordResetRequestResponseDto })
+  async requestPasswordReset(
+    @Body() dto: PasswordResetRequestDto,
+  ): Promise<PasswordResetRequestResponseDto> {
+    await this.membership.requestPasswordReset(dto.email);
+    return { ok: true };
+  }
+
+  @Post('password-reset/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'UC-04 A4 · Confirmar reset: setea la contraseña nueva, revoca sesiones vigentes y auto-loguea (410 si el token es inválido/expirado/usado)',
+  })
+  @ApiOkResponse({ type: AuthResponseDto })
+  confirmPasswordReset(@Body() dto: PasswordResetConfirmDto): Promise<AuthResponseDto> {
+    return this.membership.confirmPasswordReset(dto);
   }
 
   @Post('step-up')
