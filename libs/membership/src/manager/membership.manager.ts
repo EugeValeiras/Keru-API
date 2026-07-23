@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -35,9 +36,16 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 import { RegisterCaregiverDto } from './dto/register-caregiver.dto';
 import { UpdateCaregiverProfileDto } from './dto/update-caregiver-profile.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import { AuthResponseDto, LoginDto, SignupDto, StepUpResponseDto } from './dto/auth.dto';
+import {
+  AuthResponseDto,
+  LoginDto,
+  PasswordResetConfirmDto,
+  SignupDto,
+  StepUpResponseDto,
+} from './dto/auth.dto';
 
 const INVITATION_TTL_MINUTES = 30; // OQ-2
+const PASSWORD_RESET_TTL_MINUTES = 30; // UC-04 A4: corta vida, patrón NFR-19
 
 export interface InvitationPreview {
   patientId: string;
@@ -193,6 +201,85 @@ export class MembershipManager {
       metadata: { jti, expiresInSeconds },
     });
     return { stepUpToken, expiresInSeconds };
+  }
+
+  /**
+   * UC-04 A4 · Pedido de recuperación de contraseña. Responde SIEMPRE ok (anti-enumeración): el
+   * llamador nunca sabe si el email existe. Si la cuenta existe, acuña un token de un solo uso y
+   * corta vida (patrón NFR-19), lo audita y envía el link por email (mejor esfuerzo: un fallo de
+   * SES no rompe el flujo — el usuario puede volver a pedirlo).
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    const account = await this.accountAccess.findAccountByEmail(email);
+    // Anti-enumeración: sin cuenta, no hacemos nada pero devolvemos igual (200 arriba).
+    if (!account) return;
+
+    const token = randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60_000);
+    const reset = await this.accountAccess.createPasswordResetToken({
+      token,
+      accountId: account.id,
+      expiresAt,
+    });
+
+    await this.audit.record({
+      action: 'auth.password-reset.issued',
+      actor: account.id,
+      target: { type: 'account', id: account.id },
+      metadata: { resetId: reset.id, expiresAt },
+    });
+
+    void this.email
+      .sendPasswordResetEmail({ to: account.email, token: reset.token, expiresAt: reset.expiresAt })
+      .catch((err) =>
+        this.logger.warn(`No se pudo enviar el email de recuperación: ${(err as Error).message}`),
+      );
+  }
+
+  /**
+   * UC-04 A4 · Confirmación del reset. Valida el token (existe, pendiente, no expirado; si no →
+   * 410 sin revelar cuál de las tres). Con token válido: setea el hash nuevo, marca el token
+   * usado y audita el uso, todo en una transacción; luego REVOCA todas las sesiones vigentes de
+   * la cuenta (corte por cuenta en la denylist + limpieza de push subscriptions vía outbox). El
+   * at-most-once (NFR-34) lo garantiza el token de un solo uso, no un operationId aparte
+   * (ADR-0002). Devuelve una sesión nueva (auto-login) para que el usuario siga sin re-loguear.
+   */
+  async confirmPasswordReset(dto: PasswordResetConfirmDto): Promise<AuthResponseDto> {
+    const reset = await this.accountAccess.findPasswordResetByToken(dto.token);
+    // Anti-enumeración: no distinguimos inexistente / usado / expirado (todo 410).
+    if (!reset || reset.status !== 'pending' || reset.expiresAt.getTime() <= Date.now()) {
+      throw new GoneException('El enlace de recuperación es inválido o expiró');
+    }
+
+    const account = await this.accountAccess.findAccountById(reset.accountId);
+    if (!account) throw new GoneException('El enlace de recuperación es inválido o expiró');
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, MembershipManager.SALT_ROUNDS);
+    const event = await this.tx.run(async (em) => {
+      await this.accountAccess.updatePasswordHash(account.id, passwordHash, em);
+      await this.accountAccess.markPasswordResetUsed(reset.id, new Date(), em);
+      await this.audit.record({
+        action: 'auth.password-reset.used',
+        actor: account.id,
+        target: { type: 'account', id: account.id },
+        metadata: { resetId: reset.id },
+        manager: em,
+      });
+      // NFR-41: expulsar las sesiones vigentes de la cuenta también limpia sus push subscriptions
+      // (viven en CareRecord, dueño único): Manager→Manager solo encolado. Sin endpoint → toda la cuenta.
+      return this.pubsub.publish({
+        manager: em,
+        type: DomainEventType.SessionRevoked,
+        payload: { accountId: account.id, pushEndpoint: null },
+      });
+    });
+
+    // Corte por cuenta en la denylist: todo token emitido antes de ahora recibe 401 (NFR-41).
+    await this.tokenRevocation.revokeAccountSessions(account.id);
+    await this.pubsub.enqueue(event);
+
+    // Auto-login: el token nuevo es posterior al corte, así que sobrevive a la revocación.
+    return this.issueToken(account);
   }
 
   // --- UC-23 · Perfil de la cuenta ---

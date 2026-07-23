@@ -102,6 +102,70 @@
         ]
       }
     },
+    "/api/v1/auth/password-reset/request": {
+      "post": {
+        "operationId": "AuthController_requestPasswordReset_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetRequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "UC-04 A4 · Pedir reset de contraseña: responde SIEMPRE 200 (anti-enumeración)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/password-reset/confirm": {
+      "post": {
+        "operationId": "AuthController_confirmPasswordReset_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirmDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "UC-04 A4 · Confirmar reset: setea la contraseña nueva, revoca sesiones vigentes y auto-loguea (410 si el token es inválido/expirado/usado)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/step-up": {
       "post": {
         "operationId": "AuthController_stepUp_v1",
@@ -3029,6 +3093,49 @@
         },
         "required": [
           "ok"
+        ]
+      },
+      "PasswordResetRequestDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "familiar@test.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "PasswordResetRequestResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true,
+            "description": "Siempre true: no revela si el email existe (anti-enumeración, UC-04 A4)."
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "PasswordResetConfirmDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Token de un solo uso recibido por email"
+          },
+          "newPassword": {
+            "type": "string",
+            "example": "S3gura!123",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
         ]
       },
       "StepUpDto": {

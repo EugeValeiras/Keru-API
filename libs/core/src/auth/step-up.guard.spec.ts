@@ -71,7 +71,10 @@ describe('JwtAuthGuard + denylist (NFR-41)', () => {
 
   it('Dado un token deslistado por logout, entonces 401 aunque la firma sea válida', async () => {
     const jwt = { verifyAsync: jest.fn().mockResolvedValue(payload) };
-    const revocation = { isRevoked: jest.fn().mockResolvedValue(true) };
+    const revocation = {
+      isRevoked: jest.fn().mockResolvedValue(true),
+      isAccountSessionRevoked: jest.fn().mockResolvedValue(false),
+    };
     const guard = new JwtAuthGuard(jwt as never, revocation as never);
     await expect(guard.canActivate(ctx({ authorization: 'Bearer t' }))).rejects.toBeInstanceOf(
       UnauthorizedException,
@@ -79,9 +82,25 @@ describe('JwtAuthGuard + denylist (NFR-41)', () => {
     expect(revocation.isRevoked).toHaveBeenCalledWith('jti-1');
   });
 
+  it('Dado un token de una cuenta con reset de contraseña (corte por cuenta), entonces 401 (UC-04 A4)', async () => {
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue(payload) };
+    const revocation = {
+      isRevoked: jest.fn().mockResolvedValue(false),
+      isAccountSessionRevoked: jest.fn().mockResolvedValue(true),
+    };
+    const guard = new JwtAuthGuard(jwt as never, revocation as never);
+    await expect(guard.canActivate(ctx({ authorization: 'Bearer t' }))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(revocation.isAccountSessionRevoked).toHaveBeenCalledWith('acc-1', undefined);
+  });
+
   it('Dado un token vigente no deslistado, entonces pasa y el principal lleva jti y exp (para el logout)', async () => {
     const jwt = { verifyAsync: jest.fn().mockResolvedValue(payload) };
-    const revocation = { isRevoked: jest.fn().mockResolvedValue(false) };
+    const revocation = {
+      isRevoked: jest.fn().mockResolvedValue(false),
+      isAccountSessionRevoked: jest.fn().mockResolvedValue(false),
+    };
     const guard = new JwtAuthGuard(jwt as never, revocation as never);
     const request: { account?: { jti?: string; tokenExp?: number } } = {};
     const context = {

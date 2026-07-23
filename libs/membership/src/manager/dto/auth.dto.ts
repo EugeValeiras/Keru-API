@@ -65,6 +65,35 @@ export class StepUpDto {
   password!: string;
 }
 
+/** UC-04 A4 · Pedido de recuperación de contraseña. Responde SIEMPRE 200 (anti-enumeración). */
+export class PasswordResetRequestDto {
+  @ApiProperty({ example: 'familiar@test.com' })
+  @IsEmail()
+  email!: string;
+}
+
+export class PasswordResetRequestResponseDto {
+  @ApiProperty({
+    example: true,
+    description: 'Siempre true: no revela si el email existe (anti-enumeración, UC-04 A4).',
+  })
+  ok!: boolean;
+}
+
+/** UC-04 A4 · Confirmación: token del email + nueva contraseña (misma fuerza que el alta). */
+export class PasswordResetConfirmDto {
+  @ApiProperty({ description: 'Token de un solo uso recibido por email' })
+  @IsString()
+  @MinLength(1)
+  token!: string;
+
+  @ApiProperty({ example: 'S3gura!123', minLength: 8 })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(72)
+  newPassword!: string;
+}
+
 export class StepUpResponseDto {
   @ApiProperty({ description: 'Token corto con claim step_up: acompaña la operación sensible en x-step-up-token' })
   stepUpToken!: string;

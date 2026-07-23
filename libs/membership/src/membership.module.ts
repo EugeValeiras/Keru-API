@@ -6,6 +6,7 @@ import { Account } from './resource-access/entities/account.entity';
 import { Caregiver } from './resource-access/entities/caregiver.entity';
 import { CaregiverRateVersion } from './resource-access/entities/caregiver-rate-version.entity';
 import { FamilyInvitation } from './resource-access/entities/family-invitation.entity';
+import { PasswordResetToken } from './resource-access/entities/password-reset-token.entity';
 import { AccountAccess } from './resource-access/account.access';
 import { CaregiverAccess } from './resource-access/caregiver.access';
 import { MembershipManager } from './manager/membership.manager';
@@ -26,7 +27,15 @@ import { FilesController } from './files.controller';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Patient, PatientLink, Account, Caregiver, CaregiverRateVersion, FamilyInvitation]),
+    TypeOrmModule.forFeature([
+      Patient,
+      PatientLink,
+      Account,
+      Caregiver,
+      CaregiverRateVersion,
+      FamilyInvitation,
+      PasswordResetToken,
+    ]),
   ],
   controllers: [
     AuthController,

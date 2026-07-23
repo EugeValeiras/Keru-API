@@ -6,6 +6,13 @@ import { EmergencyContact, Patient } from './entities/patient.entity';
 import { PatientLink } from './entities/patient-link.entity';
 import { Account } from './entities/account.entity';
 import { FamilyInvitation, InvitationStatus } from './entities/family-invitation.entity';
+import { PasswordResetToken } from './entities/password-reset-token.entity';
+
+export interface CreatePasswordResetTokenInput {
+  token: string;
+  accountId: string;
+  expiresAt: Date;
+}
 
 export interface CreateInvitationInput {
   token: string;
@@ -52,6 +59,8 @@ export class AccountAccess {
     @InjectRepository(PatientLink) private readonly links: Repository<PatientLink>,
     @InjectRepository(Account) private readonly accounts: Repository<Account>,
     @InjectRepository(FamilyInvitation) private readonly invitations: Repository<FamilyInvitation>,
+    @InjectRepository(PasswordResetToken)
+    private readonly passwordResets: Repository<PasswordResetToken>,
   ) {}
 
   // --- Invitaciones familiares (UC-03) ---
@@ -81,6 +90,36 @@ export class AccountAccess {
   ): Promise<void> {
     const repo = manager ? manager.getRepository(FamilyInvitation) : this.invitations;
     await repo.update(id, { status, confirmedByAccountId, confirmedAt });
+  }
+
+  // --- Recuperación de contraseña (UC-04 A4) ---
+
+  // operation-identity: exempt — UC-04 A4: cada pedido de reset acuña deliberadamente un
+  // token nuevo (corta vida, un solo uso), mismo criterio que createInvitation. El at-most-once
+  // del reset lo garantiza el token de un solo uso al confirmar (precondición de estado), no
+  // la emisión (que además es siempre 200 por anti-enumeración).
+  createPasswordResetToken(input: CreatePasswordResetTokenInput): Promise<PasswordResetToken> {
+    return this.passwordResets.save(this.passwordResets.create({ ...input, status: 'pending', usedAt: null }));
+  }
+
+  findPasswordResetByToken(token: string): Promise<PasswordResetToken | null> {
+    return this.passwordResets.findOne({ where: { token } });
+  }
+
+  /** Marca el token consumido. Transición con precondición: naturalmente idempotente (NFR-34). */
+  async markPasswordResetUsed(id: string, usedAt: Date, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(PasswordResetToken) : this.passwordResets;
+    await repo.update(id, { status: 'used', usedAt });
+  }
+
+  /**
+   * UC-04 A4 · Setea el hash de contraseña de la cuenta (reset de contraseña). Verbo dedicado
+   * para no aflojar UpdateAccountInput, que nunca toca password. Naturalmente idempotente
+   * (repetir el mismo hash deja el mismo estado): no requiere operationId (NFR-34, ADR-0002).
+   */
+  async updatePasswordHash(accountId: string, passwordHash: string, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(Account) : this.accounts;
+    await repo.update(accountId, { passwordHash });
   }
 
   /** Vínculo (cuenta↔paciente) si existe. */

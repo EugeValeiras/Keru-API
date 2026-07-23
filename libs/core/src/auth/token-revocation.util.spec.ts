@@ -43,3 +43,40 @@ describe('TokenRevocationUtility (NFR-41)', () => {
     await expect(util.isRevoked('jti-1')).resolves.toBe(false);
   });
 });
+
+/** KER-46 · UC-04 A4: corte de sesiones por cuenta (reset de contraseña, NFR-41). */
+describe('TokenRevocationUtility · corte por cuenta (UC-04 A4)', () => {
+  it('revokeAccountSessions estampa el corte = ahora con la clave prefijada y TTL = vida del JWT', async () => {
+    const set = jest.fn().mockResolvedValue('OK');
+    const util = makeUtil({ set, exists: jest.fn(), get: jest.fn() });
+    const before = Math.floor(Date.now() / 1000);
+    await util.revokeAccountSessions('acc-1');
+    const [key, value, px, ttlMs] = set.mock.calls[0] as [string, string, string, number];
+    expect(key).toBe('keru-test:jwt-account-cutoff:acc-1');
+    expect(px).toBe('PX');
+    expect(Number(value)).toBeGreaterThanOrEqual(before);
+    // JWT_EXPIRES mockeado no parsea → techo defensivo de 7 días.
+    expect(ttlMs).toBe(7 * 24 * 60 * 60 * 1000);
+  });
+
+  it('isAccountSessionRevoked: token anterior al corte → revocado; posterior o igual → vivo', async () => {
+    const cutoff = 1_000_000;
+    const get = jest.fn().mockResolvedValue(String(cutoff));
+    const util = makeUtil({ set: jest.fn(), exists: jest.fn(), get });
+    await expect(util.isAccountSessionRevoked('acc-1', cutoff - 1)).resolves.toBe(true);
+    await expect(util.isAccountSessionRevoked('acc-1', cutoff)).resolves.toBe(false);
+    await expect(util.isAccountSessionRevoked('acc-1', cutoff + 1)).resolves.toBe(false);
+  });
+
+  it('sin corte estampado o sin iat, el token nunca está revocado por cuenta', async () => {
+    const util = makeUtil({ set: jest.fn(), exists: jest.fn(), get: jest.fn().mockResolvedValue(null) });
+    await expect(util.isAccountSessionRevoked('acc-1', 1_000_000)).resolves.toBe(false);
+    await expect(util.isAccountSessionRevoked('acc-1', undefined)).resolves.toBe(false);
+  });
+
+  it('Dado Redis caído, el corte por cuenta falla ABIERTO (NFR-41)', async () => {
+    const get = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    const util = makeUtil({ set: jest.fn(), exists: jest.fn(), get });
+    await expect(util.isAccountSessionRevoked('acc-1', 1_000_000)).resolves.toBe(false);
+  });
+});
