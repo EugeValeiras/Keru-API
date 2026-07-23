@@ -23,6 +23,12 @@ export interface CreateAccountInput {
   displayName: string;
 }
 
+/** UC-23 · Campos editables del perfil de la cuenta (nunca email/role/password por esta vía). */
+export interface UpdateAccountInput {
+  displayName?: string;
+  photoUrl?: string | null;
+}
+
 export interface CreatePatientInput {
   fullName: string;
   birthDate: string;
@@ -108,6 +114,16 @@ export class AccountAccess {
   findAccountsByIds(ids: string[]): Promise<Account[]> {
     if (ids.length === 0) return Promise.resolve([]);
     return this.accounts.find({ where: { id: In(ids) } });
+  }
+
+  /**
+   * UC-23 · Set parcial del perfil de la cuenta (nombre/foto). Naturalmente idempotente
+   * (repetir el mismo patch deja el mismo estado final), por eso no requiere operationId
+   * (NFR-34, aclaración ADR-0002). Nunca toca email/role/password.
+   */
+  async updateAccount(accountId: string, patch: UpdateAccountInput, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(Account) : this.accounts;
+    await repo.update(accountId, patch);
   }
 
   /** Crea el perfil de paciente. Idempotente: un reintento con el mismo operationId devuelve el existente (NFR-34). */

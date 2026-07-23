@@ -24,8 +24,9 @@ import {
   PubSubUtility,
   DomainEventType,
 } from '@keru/core';
-import { AccountAccess } from '../resource-access/account.access';
+import { AccountAccess, UpdateAccountInput } from '../resource-access/account.access';
 import { CaregiverAccess, UpdateApprovedProfileInput } from '../resource-access/caregiver.access';
+import { Account } from '../resource-access/entities/account.entity';
 import { Patient } from '../resource-access/entities/patient.entity';
 import { Caregiver } from '../resource-access/entities/caregiver.entity';
 import { FamilyInvitation } from '../resource-access/entities/family-invitation.entity';
@@ -33,6 +34,7 @@ import { RegisterPatientDto } from './dto/register-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { RegisterCaregiverDto } from './dto/register-caregiver.dto';
 import { UpdateCaregiverProfileDto } from './dto/update-caregiver-profile.dto';
+import { UpdateAccountDto } from './dto/update-account.dto';
 import { AuthResponseDto, LoginDto, SignupDto, StepUpResponseDto } from './dto/auth.dto';
 
 const INVITATION_TTL_MINUTES = 30; // OQ-2
@@ -111,7 +113,7 @@ export class MembershipManager {
       target: { type: 'account', id: account.id },
       metadata: { role: account.role },
     });
-    return this.issueToken(account.id, account.email, account.role, account.displayName);
+    return this.issueToken(account);
   }
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
@@ -119,19 +121,28 @@ export class MembershipManager {
     if (!account) throw new UnauthorizedException('Credenciales inválidas');
     const ok = await bcrypt.compare(dto.password, account.passwordHash);
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
-    return this.issueToken(account.id, account.email, account.role, account.displayName);
+    return this.issueToken(account);
   }
 
-  private async issueToken(
-    accountId: string,
-    email: string,
-    role: JwtPayload['role'],
-    displayName: string,
-  ): Promise<AuthResponseDto> {
+  private async issueToken(account: Account): Promise<AuthResponseDto> {
     // jti (NFR-41, KER-38): identidad del token — sin ella no hay revocación server-side.
-    const payload: JwtPayload = { sub: accountId, email, role, jti: randomUUID() };
+    const payload: JwtPayload = {
+      sub: account.id,
+      email: account.email,
+      role: account.role,
+      jti: randomUUID(),
+    };
     const accessToken = await this.jwt.signAsync(payload);
-    return { accessToken, accountId, email, role, displayName };
+    // photoUrl (UC-23): viaja en la respuesta de auth para que el header pinte el avatar real
+    // ni bien inicia sesión (y tras recargar, desde la sesión persistida) sin una llamada extra.
+    return {
+      accessToken,
+      accountId: account.id,
+      email: account.email,
+      role: account.role,
+      displayName: account.displayName,
+      photoUrl: account.photoUrl,
+    };
   }
 
   /**
@@ -182,6 +193,47 @@ export class MembershipManager {
       metadata: { jti, expiresInSeconds },
     });
     return { stepUpToken, expiresInSeconds };
+  }
+
+  // --- UC-23 · Perfil de la cuenta ---
+
+  /** UC-23 · Datos propios de la cuenta autenticada (nombre, email, rol, foto). */
+  async getMyAccount(accountId: string): Promise<Account> {
+    const account = await this.accountAccess.findAccountById(accountId);
+    if (!account) throw new NotFoundException('No se encontró la cuenta');
+    return account;
+  }
+
+  /**
+   * UC-23 · Editar el perfil de la cuenta: set parcial de nombre y/o foto (nunca email/role).
+   * Naturalmente idempotente (NFR-34, ADR-0002): no lleva operationId. Auditado. Si el patch
+   * viene vacío devuelve la cuenta sin tocar la base.
+   */
+  async updateMyAccount(dto: UpdateAccountDto, accountId: string): Promise<Account> {
+    const account = await this.accountAccess.findAccountById(accountId);
+    if (!account) throw new NotFoundException('No se encontró la cuenta');
+
+    // Set parcial: solo las claves presentes en el patch.
+    const patch: UpdateAccountInput = Object.fromEntries(
+      Object.entries({ displayName: dto.displayName, photoUrl: dto.photoUrl }).filter(
+        ([, value]) => value !== undefined,
+      ),
+    );
+    const fields = Object.keys(patch);
+    if (fields.length === 0) return account;
+
+    await this.tx.run(async (em) => {
+      await this.accountAccess.updateAccount(accountId, patch, em);
+      await this.audit.record({
+        action: 'membership.account.profile-updated',
+        actor: accountId,
+        target: { type: 'account', id: accountId },
+        metadata: { fields },
+        manager: em,
+      });
+    });
+
+    return (await this.accountAccess.findAccountById(accountId))!;
   }
 
   /** UC-01 · Registrar paciente. */

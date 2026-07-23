@@ -139,6 +139,69 @@
         ]
       }
     },
+    "/api/v1/accounts/me": {
+      "get": {
+        "operationId": "AccountsController_myAccount_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-23 · Ver mi perfil de cuenta (nombre, email, rol, foto)",
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "patch": {
+        "description": "Set parcial de nombre y/o foto. El email (identidad de login, UC-04) no se edita por esta vía. La foto se sube antes por POST /files/images. Naturalmente idempotente (NFR-34).",
+        "operationId": "AccountsController_updateMyAccount_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-23 · Editar mi perfil de cuenta",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
     "/api/v1/patients": {
       "post": {
         "description": "Crea el perfil del paciente y vincula al creador como consent-holder. Idempotente por operationId (NFR-34).",
@@ -2914,6 +2977,11 @@
           },
           "displayName": {
             "type": "string"
+          },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "UC-23 · Foto de la cuenta para el avatar del header (null si no cargó una)"
           }
         },
         "required": [
@@ -2992,6 +3060,57 @@
           "stepUpToken",
           "expiresInSeconds"
         ]
+      },
+      "AccountResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "description": "Identidad de login: de solo lectura (no se edita por esta vía)"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "patient",
+              "family",
+              "caregiver",
+              "admin"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName",
+          "role"
+        ]
+      },
+      "UpdateAccountDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "example": "Juana Díaz",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "photoUrl": {
+            "type": "object",
+            "example": "http://localhost:4566/keru-media/images/abc.jpg",
+            "nullable": true
+          }
+        }
       },
       "EmergencyContactDto": {
         "type": "object",

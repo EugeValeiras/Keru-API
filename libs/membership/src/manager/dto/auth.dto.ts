@@ -89,4 +89,7 @@ export class AuthResponseDto {
 
   @ApiProperty()
   displayName!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true, description: 'UC-23 · Foto de la cuenta para el avatar del header (null si no cargó una)' })
+  photoUrl?: string | null;
 }
