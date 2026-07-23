@@ -23,6 +23,10 @@ export class Account {
   @Column({ type: 'varchar', length: 200 })
   displayName!: string;
 
+  /** UC-23 · Foto de la cuenta (avatar del header). Opcional: sin ella el cliente cae al fallback inicial+color. */
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  photoUrl!: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 }

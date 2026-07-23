@@ -11,6 +11,7 @@ import { CaregiverAccess } from './resource-access/caregiver.access';
 import { MembershipManager } from './manager/membership.manager';
 import { MembershipController } from './membership.controller';
 import { AuthController } from './auth.controller';
+import { AccountsController } from './accounts.controller';
 import { CaregiverController } from './caregiver.controller';
 import { AdminCaregiverController } from './admin-caregiver.controller';
 import { InvitationController } from './invitation.controller';
@@ -29,6 +30,7 @@ import { FilesController } from './files.controller';
   ],
   controllers: [
     AuthController,
+    AccountsController,
     MembershipController,
     CaregiverController,
     AdminCaregiverController,

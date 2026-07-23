@@ -13,6 +13,7 @@ import { NoShowReportedAt1784803218727 } from './1784803218727-NoShowReportedAt'
 import { OutboxRetryDlq1784810000000 } from './1784810000000-OutboxRetryDlq';
 import { AlertDeliveryOutcome1784820000000 } from './1784820000000-AlertDeliveryOutcome';
 import { RecordCorrection1784830000000 } from './1784830000000-RecordCorrection';
+import { AccountPhotoUrl1784840000000 } from './1784840000000-AccountPhotoUrl';
 
 export const ALL_MIGRATIONS: Array<new () => unknown> = [
   InitialSchema1784783279894,
@@ -22,4 +23,5 @@ export const ALL_MIGRATIONS: Array<new () => unknown> = [
   OutboxRetryDlq1784810000000,
   AlertDeliveryOutcome1784820000000,
   RecordCorrection1784830000000,
+  AccountPhotoUrl1784840000000,
 ];
