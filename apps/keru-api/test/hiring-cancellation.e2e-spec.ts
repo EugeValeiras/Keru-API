@@ -29,7 +29,7 @@ describe('E2E · Cancelación de asignación activa, no-show y rehire urgente (K
     app = await createE2EApp();
     familiar = await signup(app, 'family', 'Familiar Cancelaciones');
     admin = await signupAdmin(app);
-    caregiver = await createApprovedCaregiver(app, admin.token);
+    caregiver = await createApprovedCaregiver(app, admin);
     patientId = await registerPatient(app, familiar.token);
   }, 60000);
 
@@ -213,7 +213,7 @@ describe('E2E · Cancelación de asignación activa, no-show y rehire urgente (K
   });
 
   it('UC-16 A2 · el rehire urgente exige contratación previa: cuidador nunca contratado → 400', async () => {
-    const otro = await createApprovedCaregiver(app, admin.token);
+    const otro = await createApprovedCaregiver(app, admin);
 
     const res = await http(app)
       .post('/api/v1/hiring-requests/rehire')

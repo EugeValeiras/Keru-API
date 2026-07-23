@@ -1,6 +1,6 @@
 import { Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
+import { ApiBearerAuth, ApiHeader, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AuthPrincipal, CurrentAccount, JwtAuthGuard, STEP_UP_HEADER, StepUpGuard } from '@keru/core';
 import { CareRecordManager } from './manager/care-record.manager';
 import { QuarantinedRecordDto } from './manager/dto/responses.dto';
 
@@ -28,7 +28,11 @@ export class QuarantineController {
 
   @Post(':id/approve')
   @HttpCode(200)
-  @ApiOperation({ summary: 'UC-12 A3 · Aprobar: entra al historial con su measuredAt original (NFR-36)' })
+  // NFR-33 (KER-38): liberar cuarentena mete en el historial un dato que la autorización normal
+  // rechazó — operación sensible, exige re-confirmación step-up además del vínculo.
+  @UseGuards(StepUpGuard)
+  @ApiHeader({ name: STEP_UP_HEADER, required: true, description: 'Token corto de re-confirmación (POST /auth/step-up)' })
+  @ApiOperation({ summary: 'UC-12 A3 · Aprobar: entra al historial con su measuredAt original (NFR-36). Exige step-up (NFR-33)' })
   @ApiOkResponse({ type: QuarantinedRecordDto })
   async approve(
     @Param('patientId') patientId: string,

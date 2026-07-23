@@ -36,12 +36,14 @@ export * from './permission/stub-authority.provider';
 // Reputation read port (§3.7 Ports & Adapters)
 export * from './reputation/reputation-reader';
 
-// Auth (UC-04)
+// Auth (UC-04; KER-38: sesión revocable + step-up NFR-33/41)
 export * from './auth/auth-principal';
 export * from './auth/jwt-auth.guard';
 export * from './auth/current-account.decorator';
 export * from './auth/roles.decorator';
 export * from './auth/roles.guard';
+export * from './auth/step-up.guard';
+export * from './auth/token-revocation.util';
 
 // Errors
 export * from './errors/error-response';

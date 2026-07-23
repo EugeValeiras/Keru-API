@@ -29,7 +29,7 @@ describe('E2E · Completado vs pagado-declarado (UC-09/17/21, Decouple row 49)',
     app = await createE2EApp();
     familiar = await signup(app, 'family', 'Familiar Cierre');
     const admin = await signupAdmin(app);
-    caregiver = await createApprovedCaregiver(app, admin.token);
+    caregiver = await createApprovedCaregiver(app, admin);
     patientId = await registerPatient(app, familiar.token);
 
     const created = await http(app)

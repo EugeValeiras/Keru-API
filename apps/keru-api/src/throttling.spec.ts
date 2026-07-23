@@ -2,10 +2,12 @@ import { Controller, Get, INestApplication } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { SkipThrottle, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { JwtService } from '@nestjs/jwt';
 import {
   AllExceptionsFilter,
   THROTTLE_LIMITS,
   THROTTLE_TTL_MS,
+  TokenRevocationUtility,
   throttlerModuleOptions,
 } from '@keru/core';
 import { AuthController } from '@keru/membership/auth.controller';
@@ -39,6 +41,9 @@ describe('KER-14 · login con más de N intentos/min devuelve 429 (config real)'
           },
         },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
+        // KER-38: logout/step-up llevan JwtAuthGuard — stubs para que Nest resuelva el guard.
+        { provide: JwtService, useValue: {} },
+        { provide: TokenRevocationUtility, useValue: { isRevoked: jest.fn().mockResolvedValue(false) } },
       ],
     }).compile();
 

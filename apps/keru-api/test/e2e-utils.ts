@@ -25,6 +25,23 @@ export const bearer = (token: string): Record<string, string> => ({
   Authorization: `Bearer ${token}`,
 });
 
+/** KER-38 (NFR-33): header del token corto de re-confirmación para operaciones sensibles. */
+export const stepUpHeader = (token: string): Record<string, string> => ({
+  'x-step-up-token': token,
+});
+
+/** KER-38 · Re-confirma el password de la cuenta y devuelve el token corto step_up. */
+export async function stepUp(app: INestApplication, account: TestAccount): Promise<string> {
+  const res = await http(app)
+    .post('/api/v1/auth/step-up')
+    .set(bearer(account.token))
+    .send({ password: account.password });
+  if (res.status !== 200) {
+    throw new Error(`step-up falló: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+  return res.body.stepUpToken as string;
+}
+
 export const http = (app: INestApplication) => request(app.getHttpServer());
 
 /** App real configurada igual que main.ts (prefijo /api/v1, pipes y envelope de errores). */
@@ -101,10 +118,14 @@ export function caregiverProfileBody(operationId: string = uid('op-caregiver')) 
   };
 }
 
-/** UC-02 + UC-19: cuenta caregiver con perfil creado y aprobado por un admin. */
+/**
+ * UC-02 + UC-19: cuenta caregiver con perfil creado y aprobado por un admin.
+ * Aprobar es operación sensible (KER-38, NFR-33): exige step-up, por eso recibe la cuenta
+ * admin completa (necesita su password para la re-confirmación), no solo el token.
+ */
 export async function createApprovedCaregiver(
   app: INestApplication,
-  adminToken: string,
+  admin: TestAccount,
 ): Promise<{ account: TestAccount; caregiverId: string }> {
   const account = await signup(app, 'caregiver', 'Laura Gómez');
   const created = await http(app)
@@ -116,7 +137,8 @@ export async function createApprovedCaregiver(
   }
   const approved = await http(app)
     .post(`/api/v1/admin/caregivers/${created.body.id}/approve`)
-    .set(bearer(adminToken));
+    .set(bearer(admin.token))
+    .set(stepUpHeader(await stepUp(app, admin)));
   if (approved.status !== 201) {
     throw new Error(`aprobación de cuidador falló: ${approved.status} ${JSON.stringify(approved.body)}`);
   }

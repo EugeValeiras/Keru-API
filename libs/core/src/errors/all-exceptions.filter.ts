@@ -29,13 +29,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let message = 'Error interno';
     let details: unknown;
+    let code: string | undefined;
 
     if (exception instanceof HttpException) {
       const res = exception.getResponse();
       if (typeof res === 'string') {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
-        const body = res as { message?: unknown; error?: unknown };
+        const body = res as { message?: unknown; error?: unknown; code?: unknown };
         // ValidationPipe entrega message: string[] -> lo movemos a details.fields.
         if (Array.isArray(body.message)) {
           message = 'Error de validación';
@@ -43,6 +44,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         } else if (typeof body.message === 'string') {
           message = body.message;
         }
+        // Código específico del dominio (p. ej. STEP_UP_REQUIRED): pisa el genérico por status.
+        if (typeof body.code === 'string') code = body.code;
       }
     }
 
@@ -61,7 +64,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const payload: ErrorResponse = {
       statusCode: status,
-      code: httpStatusToCode(status),
+      code: code ?? httpStatusToCode(status),
       message,
       details,
       path: request.url,

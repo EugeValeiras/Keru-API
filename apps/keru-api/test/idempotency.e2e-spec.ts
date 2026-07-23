@@ -61,7 +61,7 @@ describe('E2E · Idempotencia por operationId (NFR-34)', () => {
         .send(patientBody(uid('op-patient-hiring')))
     ).body.id;
     const admin = await signupAdmin(app);
-    const { caregiverId } = await createApprovedCaregiver(app, admin.token);
+    const { caregiverId } = await createApprovedCaregiver(app, admin);
 
     const body = hiringRequestBody(
       patientId,

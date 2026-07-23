@@ -2,27 +2,43 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { AuthPrincipal, JwtPayload } from './auth-principal';
+import { TokenRevocationUtility } from './token-revocation.util';
 
 /**
  * JwtAuthGuard (UC-04). Verifica el Bearer token y adjunta el principal a `request.account`,
  * accesible con @CurrentAccount(). Reemplaza el placeholder `x-account-id`.
+ * Desde KER-38 (NFR-41) consulta además la denylist de jti: un token deslistado por logout
+ * vale tanto como uno expirado.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly jwt: JwtService) {}
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly revocation: TokenRevocationUtility,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request & { account?: AuthPrincipal }>();
     const token = this.extractToken(request);
     if (!token) throw new UnauthorizedException('Falta el token de autenticación');
 
+    let payload: JwtPayload;
     try {
-      const payload = await this.jwt.verifyAsync<JwtPayload>(token);
-      request.account = { accountId: payload.sub, email: payload.email, role: payload.role };
-      return true;
+      payload = await this.jwt.verifyAsync<JwtPayload>(token);
     } catch {
       throw new UnauthorizedException('Token inválido o expirado');
     }
+    if (await this.revocation.isRevoked(payload.jti)) {
+      throw new UnauthorizedException('Token revocado: la sesión fue cerrada');
+    }
+    request.account = {
+      accountId: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      jti: payload.jti,
+      tokenExp: payload.exp,
+    };
+    return true;
   }
 
   private extractToken(request: Request): string | undefined {

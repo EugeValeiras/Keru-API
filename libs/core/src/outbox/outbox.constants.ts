@@ -21,6 +21,8 @@ export const OUTBOX_JOB_OPTIONS = {
 export enum DomainEventType {
   // Membership -> Hiring (ripple de desactivación / revocación)
   CaregiverDeactivated = 'membership.caregiver.deactivated',
+  // Membership -> CareRecord (KER-38, NFR-41: logout revoca las push subscriptions de la sesión)
+  SessionRevoked = 'membership.session.revoked',
   // Hiring -> CareRecord (eventos de ciclo de vida de asignación)
   AssignmentActivated = 'hiring.assignment.activated',
   AssignmentClosed = 'hiring.assignment.closed',
