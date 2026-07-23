@@ -6,6 +6,10 @@ import { E2E_DB_NAME } from './e2e-db';
  * Postgres/Redis de docker (localhost por default; en CI, services del job).
  */
 process.env.DB_NAME = E2E_DB_NAME;
+// Opt-in EXPLÍCITO de synchronize (KER-29): keru_e2e es descartable — el globalSetup la
+// recrea vacía en cada corrida y cada spec bootea su schema desde las entidades, sin
+// depender del estado de las migraciones. La fidelidad migración↔entidades la cubre el
+// job `migrations` del CI (base vacía + migration:run + boot con synchronize apagado).
 process.env.DB_SYNCHRONIZE = 'true';
 
 // Bypass del rate limiting por default (skipIf es lazy: se evalúa por request). El spec de

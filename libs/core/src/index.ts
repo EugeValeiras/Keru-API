@@ -5,6 +5,9 @@ export * from './idempotency/operation-identity';
 // Config
 export * from './config/database.config';
 
+// Migraciones (KER-29: esquema versionado, synchronize solo opt-in dev/e2e)
+export * from './migrations';
+
 // Outbox / PubSub
 export * from './outbox/outbox.constants';
 export * from './outbox/outbox-event.entity';

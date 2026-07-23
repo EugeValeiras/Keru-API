@@ -62,9 +62,61 @@ jobs:
       - name: Tests unitarios (jest)
         run: npm test
 
+  # Migraciones (KER-29 / NFR-25): prueba el flujo real de despliegue — base vacía +
+  # migration:run + boot de la app completa con synchronize APAGADO (el modo
+  # GENERATE_OPENAPI levanta el AppModule entero, conexión TypeORM incluida, y sale).
+  # Si una entidad cambia sin su migración, este job se rompe.
+  migrations:
+    name: migraciones (base vacía + migration:run + boot)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: keru
+          POSTGRES_PASSWORD: keru
+          POSTGRES_DB: keru
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U keru"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Migraciones sobre base vacía
+        run: npm run migration:run
+
+      - name: Boot con synchronize apagado
+        env:
+          DB_SYNCHRONIZE: 'false'
+          GENERATE_OPENAPI: 'true'
+        run: npm run start
+
   # E2E de la API (KER-28): supertest contra la app real booteada (AppModule completo,
   # autorización real por vínculo/asignación). La infra sale de services del job; la suite
-  # recrea su base keru_e2e en el globalSetup, así el job no necesita seed ni migraciones.
+  # recrea su base keru_e2e en el globalSetup con synchronize=true EXPLÍCITO (opt-in
+  # documentado en test/e2e-env.ts) — la fidelidad de las migraciones la cubre el job
+  # `migrations`, así este no necesita seed ni migration:run.
   e2e:
     name: e2e (supertest + postgres/redis)
     runs-on: ubuntu-latest

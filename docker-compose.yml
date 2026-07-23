@@ -68,7 +68,9 @@ services:
       DB_USER: keru
       DB_PASSWORD: keru
       DB_NAME: keru
-      DB_SYNCHRONIZE: 'true'
+      # KER-29: el esquema lo aplican las migraciones al bootear (abajo), nunca synchronize.
+      DB_SYNCHRONIZE: 'false'
+      DB_MIGRATIONS_RUN: 'true'
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: dev-secret-change-me

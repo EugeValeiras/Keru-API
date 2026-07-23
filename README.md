@@ -136,6 +136,7 @@ npm run seed                                  # datos de demo (requiere Node 20 
 docker compose --profile app down             # baja todo (o npm run app:down)
 ```
 
+- La API containerizada corre con `DB_SYNCHRONIZE=false` y `DB_MIGRATIONS_RUN=true`: al bootear aplica las migraciones pendientes sola, así el stack levanta desde un volumen vacío sin pasos manuales (ver sección "Esquema de base").
 - El build de la webapp asume el repo **`Keru-Webapp` hermano** de este (`../Keru-Webapp`); si está en otra ruta, exportá `KERU_WEBAPP_DIR=<ruta>` antes del `up`.
 - El compose fija el nombre de proyecto (`name: keru-api`): los contenedores y volúmenes son los mismos desde cualquier directorio, así que este modo **convive con la infra de la Opción B** (la toma en lugar de duplicarla). Ojo: la API containerizada publica el `:3000` — si tenés `npm run start:dev` corriendo, frenalo antes o exportá `API_PORT=3001` (la webapp no lo necesita: adentro de la red del compose la API siempre es `api:3000`).
 - Circuito E2E completo contra este modo: en `Keru-Webapp`, `E2E_BASE_URL=http://localhost:8080 npm run e2e`.
@@ -152,10 +153,13 @@ npm install
 # 3. Variables de entorno (opcional: los defaults ya funcionan con la infra de arriba)
 cp .env.example .env
 
-# 4. Datos de demo (cuentas + un paciente)
+# 4. Esquema de base (migraciones versionadas — ver sección "Esquema de base")
+npm run migration:run
+
+# 5. Datos de demo (cuentas + un paciente)
 npm run seed
 
-# 5. Levantar la API en modo desarrollo (hot reload)
+# 6. Levantar la API en modo desarrollo (hot reload)
 npm run start:dev
 ```
 
@@ -165,6 +169,21 @@ npm run start:dev
 - Bajar la infra: `npm run infra:down`
 
 **Cuentas seedeadas** (password `S3gura!123`): `familiar@test.com`, `cuidador@test.com`, `admin@test.com`. Paciente demo: *Rosa Díaz* (vinculada a `familiar@test.com`).
+
+### Esquema de base: migraciones versionadas (KER-29)
+
+El esquema de Postgres lo gobiernan **migraciones TypeORM versionadas** (`libs/core/src/migrations/`), no `synchronize`: sincronizar entidades contra el store clínico puede alterar/dropear columnas **en silencio**, y eso viola la durabilidad clínica (NFR-25) por construcción. Por eso `DB_SYNCHRONIZE` es **`false` por default** y solo se prende como opt-in explícito en bases descartables (dev local o la `keru_e2e` de la suite — ver `apps/keru-api/test/e2e-env.ts`).
+
+```bash
+npm run migration:run                                          # aplica las pendientes
+npm run migration:revert                                       # revierte la última
+npm run migration:generate -- libs/core/src/migrations/Nombre  # genera desde el diff entidades↔base
+```
+
+- **Alta de una migración:** tocá la(s) entidad(es), corré `migration:generate` contra una base con el esquema vigente (te escribe el diff), revisá el SQL generado y sumá la clase al array `ALL_MIGRATIONS` de `libs/core/src/migrations/index.ts`. El job `migrations` del CI se rompe si una entidad cambia sin su migración.
+- **Conexión del CLI:** `apps/keru-api/src/database/data-source.ts` (lee las mismas env `DB_*` que la app, y honra tu `.env`).
+- **Boot:** con `DB_MIGRATIONS_RUN=true` la app aplica las pendientes al arrancar (lo usa el compose prod-like); en dev se corren a mano.
+- **Base dev creada antes de KER-29** (por synchronize, sin tabla `migrations`): o la recreás (`docker compose down -v && npm run infra:up && npm run migration:run && npm run seed`), o marcás la inicial como ya aplicada sin ejecutarla: `npm run typeorm -- migration:run -d apps/keru-api/src/database/data-source.ts --fake`.
 
 ### Ejemplo de flujo
 
@@ -214,7 +233,7 @@ Los 5xx emiten además una línea `level: "error"` con el **stack** y el mismo `
 
 ### Rendimiento: criterio de indexación
 
-Los índices viven **solo como decoradores `@Index` en las entidades** de cada `resource-access/` (con `DB_SYNCHRONIZE` se aplican en dev; producción usará migraciones cuando existan). El criterio para decidirlos:
+Los índices viven **como decoradores `@Index` en las entidades** de cada `resource-access/` y se materializan vía la migración correspondiente (KER-29 — `migration:generate` los recoge del diff; en dev con `DB_SYNCHRONIZE=true` opt-in se aplican solos). El criterio para decidirlos:
 
 1. **Queries por réplica**: se auditan los métodos de los ResourceAccess (ahí está el 100% del SQL — los Managers no arman queries) y se listan las consultas calientes de cada tabla: las que corren por request de lectura frecuente (historial, campana, agenda, reseñas) o por barrido.
 2. **Un índice compuesto por patrón de acceso**: columnas de igualdad primero, la columna de orden al final (ej.: historial clínico `(patientId, measuredAt)` — el `ORDER BY measuredAt DESC` se resuelve recorriendo el índice hacia atrás). No se indexa "por columna": se indexa la consulta.
