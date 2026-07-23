@@ -34,6 +34,18 @@ interface PendingPush {
   payload: PushPayload;
 }
 
+/** Evento `hiring.assignment.closed` (KER-32): cierre de asignación activa (cancelación / no-show). */
+export interface AssignmentClosedEvent {
+  requestId: string;
+  patientId: string;
+  caregiverId: string;
+  reason: string;
+  note?: string | null;
+  noShowReportedAt?: string | null;
+  /** Cuentas a notificar por campana (la contraparte del actor que cerró). */
+  recipientAccountIds: string[];
+}
+
 /**
  * CareRecordManager (constitution §3.1). Orquesta capturar → evaluar → persistir → notificar.
  * Permiso al momento de la medición (NFR-30); plausibilidad (A1); commit atómico registro +
@@ -100,6 +112,59 @@ export class CareRecordManager implements OnApplicationBootstrap {
         });
       }
     }
+  }
+
+  /**
+   * KER-32 · Campana por cierre de asignación activa (UC-09 A3/A4). Lo invoca el worker del
+   * outbox al despachar `hiring.assignment.closed` (Manager→Manager encolado, constitution §3.2).
+   * CareRecord es el dueño de escritura de las notificaciones: la campana SIEMPRE se persiste
+   * (§2.7); el push es adicional y best-effort. Idempotencia: el dispatch del outbox es
+   * at-most-once por evento (markDispatched), acá no se re-chequea.
+   */
+  async handleAssignmentClosed(event: AssignmentClosedEvent): Promise<void> {
+    const recipients = [...new Set(event.recipientAccountIds ?? [])].filter(Boolean);
+    if (recipients.length === 0) return;
+
+    const { title, body } = this.hiringClosureMessage(event);
+    await this.tx.run(async (em) => {
+      for (const recipientAccountId of recipients) {
+        await this.alertAccess.createNotification(
+          { recipientAccountId, patientId: event.patientId, alertId: null, type: 'hiring', title, body },
+          em,
+        );
+      }
+    });
+    await this.dispatchPush([
+      { recipients, payload: { type: 'hiring', patientId: event.patientId, title, body } },
+    ]);
+  }
+
+  /** Texto de la campana según la razón terminal del cierre (UC-09 A3/A4). */
+  private hiringClosureMessage(event: AssignmentClosedEvent): { title: string; body: string } {
+    const byReason: Record<string, { title: string; body: string }> = {
+      'cancelled-by-requester': {
+        title: 'Asignación cancelada',
+        body: 'El solicitante canceló la asignación activa.',
+      },
+      'cancelled-by-caregiver': {
+        title: 'Asignación cancelada',
+        body: 'El cuidador canceló la asignación activa.',
+      },
+      'cancelled-by-admin': {
+        title: 'Asignación cancelada',
+        body: 'Un administrador de la plataforma canceló la asignación activa.',
+      },
+      'no-show': {
+        title: 'No-show registrado',
+        body: 'El solicitante registró que el cuidador no se presentó al servicio.',
+      },
+    };
+    const base = byReason[event.reason] ?? {
+      title: 'Servicio cerrado',
+      body: `El servicio cerró con razón ${event.reason}.`,
+    };
+    const body = event.note ? `${base.body} Motivo: ${event.note}` : base.body;
+    return { title: base.title, body: body.slice(0, 500) };
   }
 
   // --- UC-12 · Registrar signos vitales ---

@@ -52,6 +52,7 @@ function makeManager(overrides: Record<string, unknown> = {}): HiringManager {
       findPatientById: jest.fn().mockResolvedValue({ id: 'pat-1', fullName: 'Rosa Díaz' }),
     },
     audit: { log: jest.fn() },
+    pubsub: { publish: jest.fn().mockResolvedValue({ id: 'evt-1' }), enqueue: jest.fn() },
     reputation: {
       aggregatesFor: jest.fn().mockResolvedValue({ 'cg-1': { average: 4.5, count: 2 } }),
     },
@@ -65,6 +66,7 @@ function makeManager(overrides: Record<string, unknown> = {}): HiringManager {
     deps.caregiverAccess as never,
     deps.accountAccess as never,
     deps.audit as never,
+    deps.pubsub as never,
     deps.reputation as never,
   );
 }

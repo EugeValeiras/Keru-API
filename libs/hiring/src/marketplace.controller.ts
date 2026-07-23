@@ -13,10 +13,13 @@ import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard } from '
 import { HiringManager } from './manager/hiring.manager';
 import { SearchCaregiversDto } from './manager/dto/search-caregivers.dto';
 import { CreateRequestDto } from './manager/dto/create-request.dto';
+import { CancelActiveDto, RecordNoShowDto } from './manager/dto/cancel-active.dto';
+import { RehireRequestDto } from './manager/dto/rehire-request.dto';
 import {
   CaregiverCardDto,
   CaregiverHistoryItemDto,
   CaregiverProfileDto,
+  RehireResponseDto,
   RequestResponseDto,
 } from './manager/dto/hiring-responses.dto';
 
@@ -108,6 +111,56 @@ export class MarketplaceController {
     @CurrentAccount() account: AuthPrincipal,
   ): Promise<RequestResponseDto> {
     return RequestResponseDto.from(await this.hiring.cancelRequest(id, account.accountId), {
+      viewer: 'requester',
+    });
+  }
+
+  @Post('hiring-requests/rehire')
+  @ApiOperation({
+    summary: 'UC-16 A2 · Rehire urgente hacia un cuidador previo (KER-32)',
+    description:
+      'Re-solicitud dirigida a un cuidador que ya atendió al paciente, sin re-búsqueda. Re-pinnea la tarifa vigente (NFR-03/21) y la respuesta incluye el diff tarifa anterior vs vigente (NFR-23). Sigue el ciclo normal de UC-10.',
+  })
+  @ApiOkResponse({ type: RehireResponseDto })
+  async rehire(
+    @Body() dto: RehireRequestDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<RehireResponseDto> {
+    const result = await this.hiring.createRehireRequest(dto, account.accountId);
+    return RehireResponseDto.fromRehire(result.request, { viewer: 'requester' }, result.previousRatePerHour);
+  }
+
+  @Post('hiring-requests/:id/cancel-active')
+  @ApiOperation({
+    summary: 'UC-09 A3 · Cancelar la asignación activa (solicitante, KER-32)',
+    description:
+      'Cierra el servicio aceptado/en curso con razón terminal `cancelled-by-requester`, audita y notifica al cuidador por la campana (UC-18). Verbo mutante con operationId (NFR-34).',
+  })
+  @ApiOkResponse({ type: RequestResponseDto })
+  async cancelActive(
+    @Param('id') id: string,
+    @Body() dto: CancelActiveDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<RequestResponseDto> {
+    return RequestResponseDto.from(
+      await this.hiring.cancelActiveByRequester(id, account.accountId, dto),
+      { viewer: 'requester' },
+    );
+  }
+
+  @Post('hiring-requests/:id/no-show')
+  @ApiOperation({
+    summary: 'UC-09 A4 · Registrar no-show del cuidador (KER-32)',
+    description:
+      'El solicitante registra que el cuidador no se presentó, con timestamp. Cierra el servicio con razón terminal `no-show`, audita y notifica al cuidador por la campana. No habilita reseñas (NFR-20).',
+  })
+  @ApiOkResponse({ type: RequestResponseDto })
+  async noShow(
+    @Param('id') id: string,
+    @Body() dto: RecordNoShowDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<RequestResponseDto> {
+    return RequestResponseDto.from(await this.hiring.recordNoShow(id, account.accountId, dto), {
       viewer: 'requester',
     });
   }

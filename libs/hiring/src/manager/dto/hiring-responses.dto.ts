@@ -96,6 +96,10 @@ export class RequestResponseDto {
     description: 'Honor-mark de pago declarado por el solicitante tras el cierre (opcional, NFR-10/58).',
   })
   paidDeclaredAt?: Date;
+  @ApiPropertyOptional({
+    description: 'Momento del no-show reportado por el solicitante (UC-09 A4, KER-32); solo con razón `no-show`.',
+  })
+  noShowReportedAt?: Date;
   @ApiProperty({ description: 'Tarifa pinneada al solicitar (NFR-03/23)' }) ratePerHourSnapshot!: string;
 
   static from(r: HiringRequest, view: RequestViewOptions): RequestResponseDto {
@@ -115,7 +119,41 @@ export class RequestResponseDto {
       status: r.status,
       terminalReason: r.terminalReason ?? undefined,
       paidDeclaredAt: r.paidDeclaredAt ?? undefined,
+      noShowReportedAt: r.noShowReportedAt ?? undefined,
       ratePerHourSnapshot: r.ratePerHourSnapshot,
+    };
+  }
+}
+
+/** Diff mínimo de tarifa del rehire (UC-16 A2, NFR-23): pinneada anterior vs vigente re-pinneada. */
+export class RehireRateDiffDto {
+  @ApiProperty({ description: 'Tarifa pinneada en la última contratación previa con ese cuidador' })
+  previousRatePerHour!: string;
+  @ApiProperty({ description: 'Tarifa vigente re-pinneada en esta re-solicitud (NFR-03/21)' })
+  currentRatePerHour!: string;
+  @ApiProperty() currency!: string;
+  @ApiProperty({ description: 'true si la tarifa cambió desde la contratación anterior' })
+  changed!: boolean;
+}
+
+/** Respuesta del rehire urgente (UC-16 A2): la re-solicitud + el diff de tarifa a la vista. */
+export class RehireResponseDto extends RequestResponseDto {
+  @ApiProperty({ type: RehireRateDiffDto })
+  rateDiff!: RehireRateDiffDto;
+
+  static fromRehire(
+    r: HiringRequest,
+    view: RequestViewOptions,
+    previousRatePerHour: string,
+  ): RehireResponseDto {
+    return {
+      ...RequestResponseDto.from(r, view),
+      rateDiff: {
+        previousRatePerHour,
+        currentRatePerHour: r.ratePerHourSnapshot,
+        currency: r.currencySnapshot,
+        changed: Number(previousRatePerHour) !== Number(r.ratePerHourSnapshot),
+      },
     };
   }
 }

@@ -39,6 +39,7 @@ import { QuarantineController } from './quarantine.controller';
     AlertEngine,
     CareRecordManager,
   ],
-  exports: [CareRecordAccess],
+  // CareRecordManager se exporta para el worker del outbox (dispatch encolado Hiring→CareRecord, KER-32).
+  exports: [CareRecordAccess, CareRecordManager],
 })
 export class CareRecordModule {}

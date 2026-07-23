@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { HiringModule } from '@keru/hiring';
+import { CareRecordModule } from '@keru/care-record';
 import { OutboxProcessor } from './outbox.processor';
 
 /**
@@ -7,7 +8,7 @@ import { OutboxProcessor } from './outbox.processor';
  * Vive en la capa de composición: importa los dominios suscriptores y despacha hacia ellos.
  */
 @Module({
-  imports: [HiringModule],
+  imports: [HiringModule, CareRecordModule],
   providers: [OutboxProcessor],
 })
 export class WorkerModule {}

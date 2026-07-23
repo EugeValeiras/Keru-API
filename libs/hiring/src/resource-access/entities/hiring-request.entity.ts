@@ -16,8 +16,9 @@ export type HiringRequestStatus =
 
 /**
  * Razón terminal estructurada del cierre del servicio (NFR-12/56, Decouple row 49). Enum
- * extensible: KER-32 (cancelación de asignación activa / no-show) y el estado end-of-life
- * (NFR-12) producen las demás razones; hoy el único productor es el cierre por completado.
+ * extensible: `completed` (cierre normal), `cancelled-by-*` y `no-show` (KER-32, cancelación
+ * de asignación activa por actor / no-show del cuidador); `end-of-life` (NFR-12) queda
+ * reservada para el flujo de fin de vida.
  */
 export const HIRING_TERMINAL_REASONS = [
   'completed',
@@ -87,6 +88,10 @@ export class HiringRequest {
   /** Por qué cerró el servicio (solo en estados terminales de servicio; NFR-12, Decouple row 49). */
   @Column({ type: 'varchar', length: 32, nullable: true })
   terminalReason!: HiringTerminalReason | null;
+
+  /** Momento del no-show reportado por el solicitante (UC-09 A4, NFR-15); solo con razón `no-show`. */
+  @Column({ type: 'timestamptz', nullable: true })
+  noShowReportedAt!: Date | null;
 
   /**
    * Honor-mark de pago (OQ-1): declaración opcional del solicitante posterior al cierre.
