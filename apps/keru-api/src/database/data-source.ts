@@ -10,6 +10,14 @@ import { ALL_MIGRATIONS } from '@keru/core';
  * (sin autoLoadEntities) carga las entidades por glob. Nunca sincroniza: el esquema
  * sale solo de las migraciones registradas en ALL_MIGRATIONS.
  */
+// TLS opt-in (igual que buildTypeOrmOptions): DB_SSL=true, con DB_SSL_CA opcional.
+const ssl =
+  process.env.DB_SSL === 'true'
+    ? process.env.DB_SSL_CA
+      ? { ca: process.env.DB_SSL_CA, rejectUnauthorized: true }
+      : { rejectUnauthorized: false }
+    : false;
+
 export default new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST ?? 'localhost',
@@ -17,6 +25,7 @@ export default new DataSource({
   username: process.env.DB_USER ?? 'keru',
   password: process.env.DB_PASSWORD ?? 'keru',
   database: process.env.DB_NAME ?? 'keru',
+  ssl,
   entities: ['libs/**/*.entity.ts'],
   migrations: ALL_MIGRATIONS,
   synchronize: false,

@@ -12,6 +12,21 @@ import { ALL_MIGRATIONS } from '../migrations';
 export const MARKETPLACE_SCHEMA = 'marketplace';
 export const CLINICAL_SCHEMA = 'clinical';
 
+/**
+ * TLS hacia Postgres (NFR-seguridad). En RDS/managed la conexión debe ir cifrada
+ * (rds.force_ssl). Opt-in por `DB_SSL=true` para no afectar dev local / e2e.
+ * Si se provee `DB_SSL_CA` (PEM del CA de RDS) se valida el certificado del server
+ * (rejectUnauthorized=true); si no, se cifra sin validar la cadena (aceptable dentro
+ * de una VPC cerrada, pero DB_SSL_CA es lo recomendado para prod).
+ */
+export function buildDbSsl(config: ConfigService): boolean | { ca?: string; rejectUnauthorized: boolean } {
+  if (config.get<string>('DB_SSL', 'false') !== 'true') {
+    return false;
+  }
+  const ca = config.get<string>('DB_SSL_CA');
+  return ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false };
+}
+
 export function buildTypeOrmOptions(config: ConfigService): TypeOrmModuleOptions {
   return {
     type: 'postgres',
@@ -20,6 +35,7 @@ export function buildTypeOrmOptions(config: ConfigService): TypeOrmModuleOptions
     username: config.get<string>('DB_USER', 'keru'),
     password: config.get<string>('DB_PASSWORD', 'keru'),
     database: config.get<string>('DB_NAME', 'keru'),
+    ssl: buildDbSsl(config),
     autoLoadEntities: true,
     // KER-29 / NFR-25: el esquema lo gobiernan las migraciones versionadas. synchronize
     // sobre el store clínico puede alterar/dropear columnas en silencio, así que es
