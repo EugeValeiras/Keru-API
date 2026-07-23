@@ -127,12 +127,19 @@ export class MembershipManager {
   async login(dto: LoginDto): Promise<AuthResponseDto> {
     const account = await this.accountAccess.findAccountByEmail(dto.email);
     if (!account) throw new UnauthorizedException('Credenciales inválidas');
+    // UC-04 A5: una cuenta sin contraseña definida (first-login por invitación) no puede loguearse
+    // por credenciales — entra por el link de invitación (o recupera con el reset A4). Mismo 401
+    // genérico que un password errado (no revela el estado de la cuenta).
+    if (!account.passwordHash) throw new UnauthorizedException('Credenciales inválidas');
     const ok = await bcrypt.compare(dto.password, account.passwordHash);
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
     return this.issueToken(account);
   }
 
   private async issueToken(account: Account): Promise<AuthResponseDto> {
+    // UC-04 A5: sin hash de contraseña, la cuenta está pendiente de definirla (first-login). El
+    // token nace limitado (claim `mps`) y el guard bloquea la app hasta que la setee.
+    const mustSetPassword = !account.passwordHash;
     // jti (NFR-41, KER-38): identidad del token — sin ella no hay revocación server-side.
     const payload: JwtPayload = {
       sub: account.id,
@@ -140,6 +147,7 @@ export class MembershipManager {
       role: account.role,
       jti: randomUUID(),
     };
+    if (mustSetPassword) payload.mps = true;
     const accessToken = await this.jwt.signAsync(payload);
     // photoUrl (UC-23): viaja en la respuesta de auth para que el header pinte el avatar real
     // ni bien inicia sesión (y tras recargar, desde la sesión persistida) sin una llamada extra.
@@ -150,6 +158,7 @@ export class MembershipManager {
       role: account.role,
       displayName: account.displayName,
       photoUrl: account.photoUrl,
+      mustSetPassword,
     };
   }
 
@@ -187,6 +196,9 @@ export class MembershipManager {
   async stepUp(principal: AuthPrincipal, password: string): Promise<StepUpResponseDto> {
     const account = await this.accountAccess.findAccountById(principal.accountId);
     if (!account) throw new UnauthorizedException('Credenciales inválidas');
+    // Una cuenta pendiente de first-login no llega acá (el guard la corta con MUST_SET_PASSWORD),
+    // pero por las dudas: sin hash no hay password que re-confirmar (UC-04 A5).
+    if (!account.passwordHash) throw new UnauthorizedException('Credenciales inválidas');
     const ok = await bcrypt.compare(password, account.passwordHash);
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
 
@@ -280,6 +292,37 @@ export class MembershipManager {
 
     // Auto-login: el token nuevo es posterior al corte, así que sobrevive a la revocación.
     return this.issueToken(account);
+  }
+
+  /**
+   * UC-04 A5 · First-login: la cuenta pendiente (sin contraseña) define la suya. Corre con la
+   * sesión limitada (el guard exime esta ruta con @AllowPendingPassword). Setea el hash (misma
+   * fuerza que el alta), audita el evento y devuelve una sesión completa (auto-login) SIN el claim
+   * `mps`. Idempotencia (NFR-34) por precondición de estado: si la cuenta YA tiene contraseña →
+   * 409 (at-most-once sin operationId, ADR-0002). No revoca sesiones: el único token previo es la
+   * propia sesión limitada, que el cliente reemplaza por la nueva.
+   */
+  async setFirstLoginPassword(principal: AuthPrincipal, newPassword: string): Promise<AuthResponseDto> {
+    const account = await this.accountAccess.findAccountById(principal.accountId);
+    if (!account) throw new UnauthorizedException('Credenciales inválidas');
+    if (account.passwordHash) {
+      throw new ConflictException('La cuenta ya definió su contraseña');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, MembershipManager.SALT_ROUNDS);
+    await this.tx.run(async (em) => {
+      await this.accountAccess.updatePasswordHash(account.id, passwordHash, em);
+      await this.audit.record({
+        action: 'auth.first-login.password-set',
+        actor: account.id,
+        target: { type: 'account', id: account.id },
+        manager: em,
+      });
+    });
+
+    // Releer para que issueToken vea el hash nuevo y emita una sesión completa (mustSetPassword=false).
+    const updated = (await this.accountAccess.findAccountById(account.id))!;
+    return this.issueToken(updated);
   }
 
   // --- UC-23 · Perfil de la cuenta ---
@@ -856,6 +899,70 @@ export class MembershipManager {
     });
 
     return { patientId: inv.patientId, role: inv.roleToGrant };
+  }
+
+  /**
+   * UC-03 A1 + UC-04 A5 · Aceptar una invitación SIN estar registrado: crea la cuenta directamente
+   * desde la invitación (email = el invitado nombrado, rol `family`) SIN contraseña propia, la
+   * vincula al paciente y consume la invitación (single-use), todo en una transacción y auditado.
+   * Devuelve una sesión LIMITADA (mustSetPassword=true): el primer acceso obliga a definir la
+   * contraseña antes de usar la app. Si el email ya tiene cuenta → 409 (que inicie sesión y use el
+   * confirm normal). El desafío de identidad (NFR-19) es la posesión del token (llegó a ese email).
+   */
+  async acceptInvitationByRegistering(token: string): Promise<AuthResponseDto> {
+    const inv = await this.accountAccess.findInvitationByToken(token);
+    if (!inv) throw new NotFoundException('Invitación inválida'); // A2
+
+    if (inv.status !== 'pending') {
+      throw new BadRequestException('La invitación ya fue usada o revocada'); // single-use
+    }
+    if (inv.expiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException('La invitación expiró'); // A2 (30 min)
+    }
+
+    const existing = await this.accountAccess.findAccountByEmail(inv.invitedEmail);
+    if (existing) {
+      throw new ConflictException(
+        'Ya existe una cuenta con ese email: iniciá sesión para aceptar la invitación',
+      );
+    }
+
+    // displayName inicial: la parte local del email (la persona lo edita luego en su perfil, UC-23).
+    const displayName = inv.invitedEmail.split('@')[0].slice(0, 200) || inv.invitedEmail.slice(0, 200);
+
+    const account = await this.tx.run(async (em) => {
+      const created = await this.accountAccess.createAccount(
+        { email: inv.invitedEmail, passwordHash: null, role: 'family', displayName },
+        em,
+      );
+      await this.accountAccess.linkAccountToPatient(inv.patientId, created.id, inv.roleToGrant, em);
+      await this.accountAccess.setInvitationStatus(inv.id, 'accepted', created.id, new Date(), em);
+      await this.audit.record({
+        action: 'membership.account.created',
+        actor: created.id,
+        target: { type: 'account', id: created.id },
+        metadata: { role: 'family', via: 'invitation', mustSetPassword: true },
+        manager: em,
+      });
+      await this.audit.record({
+        action: 'membership.invitation.confirmed',
+        actor: created.id,
+        target: { type: 'patient', id: inv.patientId },
+        metadata: { role: inv.roleToGrant, via: 'invitation-register' },
+        manager: em,
+      });
+      // NFR-19: notificar el alta a todo el círculo. TODO(UC-18): vía NotificationAccess.
+      await this.audit.record({
+        action: 'membership.circle.joined',
+        actor: created.id,
+        target: { type: 'patient', id: inv.patientId },
+        manager: em,
+      });
+      return created;
+    });
+
+    // Sesión limitada (mustSetPassword=true): el cliente la lleva a "Definí tu contraseña".
+    return this.issueToken(account);
   }
 
   private assertBirthDateNotFuture(birthDate: string): void {

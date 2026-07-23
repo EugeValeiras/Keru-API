@@ -94,6 +94,15 @@ export class PasswordResetConfirmDto {
   newPassword!: string;
 }
 
+/** UC-04 A5 · First-login: definir la contraseña (misma fuerza que el alta). Sin token: la cuenta va autenticada con su sesión limitada. */
+export class SetPasswordDto {
+  @ApiProperty({ example: 'S3gura!123', minLength: 8 })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(72)
+  newPassword!: string;
+}
+
 export class StepUpResponseDto {
   @ApiProperty({ description: 'Token corto con claim step_up: acompaña la operación sensible en x-step-up-token' })
   stepUpToken!: string;
@@ -121,4 +130,11 @@ export class AuthResponseDto {
 
   @ApiPropertyOptional({ type: String, nullable: true, description: 'UC-23 · Foto de la cuenta para el avatar del header (null si no cargó una)' })
   photoUrl?: string | null;
+
+  @ApiProperty({
+    example: false,
+    description:
+      'UC-04 A5 · true si la cuenta aún no definió su contraseña (first-login por invitación): la sesión es limitada y el cliente debe llevarla a "Definí tu contraseña" antes de usar la app.',
+  })
+  mustSetPassword!: boolean;
 }

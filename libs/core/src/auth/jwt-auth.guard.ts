@@ -1,20 +1,32 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { AuthPrincipal, JwtPayload } from './auth-principal';
 import { TokenRevocationUtility } from './token-revocation.util';
+import { ALLOW_PENDING_PASSWORD_KEY, MUST_SET_PASSWORD } from './allow-pending-password.decorator';
 
 /**
  * JwtAuthGuard (UC-04). Verifica el Bearer token y adjunta el principal a `request.account`,
  * accesible con @CurrentAccount(). Reemplaza el placeholder `x-account-id`.
  * Desde KER-38 (NFR-41) consulta además la denylist de jti: un token deslistado por logout
  * vale tanto como uno expirado.
+ * Desde KER-47 (UC-04 A5) bloquea las sesiones limitadas de first-login: un token con el claim
+ * `mps` (cuenta sin contraseña definida) recibe 403 MUST_SET_PASSWORD en todo endpoint de negocio,
+ * salvo los marcados con @AllowPendingPassword (set-password, logout).
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly revocation: TokenRevocationUtility,
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -41,7 +53,23 @@ export class JwtAuthGuard implements CanActivate {
       role: payload.role,
       jti: payload.jti,
       tokenExp: payload.exp,
+      mustSetPassword: payload.mps === true,
     };
+
+    // UC-04 A5: una cuenta sin contraseña definida (sesión limitada) no puede usar la app hasta
+    // setearla. Se exime la ruta marcada con @AllowPendingPassword (el propio set-password/logout).
+    if (payload.mps === true) {
+      const allowsPending = this.reflector.getAllAndOverride<boolean>(ALLOW_PENDING_PASSWORD_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (!allowsPending) {
+        throw new ForbiddenException({
+          message: 'Definí tu contraseña para empezar a usar Keru',
+          code: MUST_SET_PASSWORD,
+        });
+      }
+    }
     return true;
   }
 

@@ -9,6 +9,8 @@ export interface AuthPrincipal {
   jti?: string;
   /** Expiración del token (epoch en segundos): TTL de la denylist al hacer logout. */
   tokenExp?: number;
+  /** UC-04 A5: la cuenta aún no definió su contraseña (first-login). Sesión limitada. */
+  mustSetPassword?: boolean;
 }
 
 /** Payload del JWT emitido en login (UC-04). */
@@ -20,6 +22,8 @@ export interface JwtPayload {
   jti?: string;
   /** Claim de los tokens cortos de re-confirmación (NFR-33): solo los emite /auth/step-up. */
   step_up?: boolean;
+  /** UC-04 A5: sesión limitada de una cuenta sin contraseña definida (first-login por invitación). */
+  mps?: boolean;
   /** Estampados por JwtService al firmar. */
   exp?: number;
   iat?: number;

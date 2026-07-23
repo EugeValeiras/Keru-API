@@ -9,6 +9,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard, THROTTLE_LIMITS, THROTTLE_TTL_MS } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
+import { AuthResponseDto } from './manager/dto/auth.dto';
 import {
   CreateInvitationDto,
   EmittedInvitationDto,
@@ -78,6 +79,21 @@ export class InvitationController {
   @ApiOkResponse({ description: 'Datos de la invitación para la pantalla de confirmación' })
   preview(@Param('token') token: string) {
     return this.membership.previewInvitation(token);
+  }
+
+  /**
+   * UC-03 A1 · Aceptar la invitación SIN estar registrado: crea la cuenta desde la invitación
+   * (sin contraseña, estado MUST_SET_PASSWORD) y la vincula. Público (el invitado aún no tiene
+   * sesión); el token del email es el desafío de identidad (NFR-19). Devuelve una sesión limitada:
+   * el cliente lleva al usuario a "Definí tu contraseña" (UC-04 A5). Cuota reducida anti fuerza
+   * bruta de tokens (KER-14), igual que la preview.
+   */
+  @Post('invitations/:token/accept')
+  @Throttle({ default: { limit: THROTTLE_LIMITS.invitationPreview, ttl: THROTTLE_TTL_MS } })
+  @ApiOperation({ summary: 'UC-03 A1 · Aceptar invitación sin cuenta: crea la cuenta (sin contraseña) y la vincula' })
+  @ApiCreatedResponse({ type: AuthResponseDto })
+  accept(@Param('token') token: string): Promise<AuthResponseDto> {
+    return this.membership.acceptInvitationByRegistering(token);
   }
 
   /** Confirmar la invitación. Requiere sesión del invitado (desafío de identidad, NFR-19). */

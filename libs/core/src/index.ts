@@ -39,6 +39,7 @@ export * from './reputation/reputation-reader';
 // Auth (UC-04; KER-38: sesión revocable + step-up NFR-33/41)
 export * from './auth/auth-principal';
 export * from './auth/jwt-auth.guard';
+export * from './auth/allow-pending-password.decorator';
 export * from './auth/current-account.decorator';
 export * from './auth/roles.decorator';
 export * from './auth/roles.guard';

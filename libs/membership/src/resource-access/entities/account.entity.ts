@@ -14,8 +14,14 @@ export class Account {
   @Index()
   email!: string;
 
-  @Column({ type: 'varchar', length: 200 })
-  passwordHash!: string;
+  /**
+   * Hash de la contraseña. Nullable (UC-04 A5, KER-47): una cuenta creada al aceptar una
+   * invitación sin estar registrada (UC-03 A1) nace SIN contraseña — `passwordHash = null` ES el
+   * estado "pendiente de definir contraseña" (MUST_SET_PASSWORD), sin columna de estado aparte.
+   * Se deja de ser pendiente en cuanto se setea el hash (POST /auth/set-password).
+   */
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  passwordHash!: string | null;
 
   @Column({ type: 'varchar', length: 32 })
   role!: AccountRole;
