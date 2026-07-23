@@ -110,6 +110,56 @@ services:
       retries: 5
       start_period: 30s
 
+  # KER-35 (NFR-25, T14): backup lógico automatizado del store (pg_dump -Fc) con retención
+  # por cantidad. Corre en el profile "app" (stack prod-like): `docker compose --profile app
+  # up -d` lo deja ciclando. Restore drill: scripts/restore-drill.sh|ps1; procedimiento,
+  # RPO/RTO y gap-disclosure (sin PITR, sin offsite) en docs/ops/backups.md.
+  backup:
+    image: postgres:16-alpine
+    container_name: keru-backup
+    restart: unless-stopped
+    profiles: ['app']
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: keru
+      PGPASSWORD: keru
+      PGDATABASE: keru
+      # Cada cuánto se corta un dump (RPO efectivo) y cuántos se retienen (poda por cantidad).
+      # Defaults: cada 6h, 28 dumps ≈ 7 días. Overrideables por env del host (.env.example).
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-21600}
+      BACKUP_KEEP: ${BACKUP_KEEP:-28}
+    volumes:
+      - keru_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Cron simple en sh: dump a .part -> rename atómico -> poda -> sleep. El .part evita que
+    # la poda o un restore vean un dump a medio escribir; un dump fallido no pisa los previos.
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        while true; do
+          ts=$$(date -u +%Y%m%dT%H%M%SZ)
+          if pg_dump -Fc -f "/backups/.$$ts.part"; then
+            mv "/backups/.$$ts.part" "/backups/keru-$$ts.dump"
+            echo "backup OK: keru-$$ts.dump ($$(wc -c < "/backups/keru-$$ts.dump") bytes)"
+            ls -1t /backups/keru-*.dump | tail -n +$$((BACKUP_KEEP + 1)) | xargs -r rm -f
+          else
+            rm -f "/backups/.$$ts.part"
+            echo "backup FAILED: $$ts" >&2
+          fi
+          sleep "$$BACKUP_INTERVAL_SECONDS"
+        done
+    healthcheck:
+      # Sano = existe al menos un dump terminado; start_period cubre el primer ciclo.
+      test: ['CMD-SHELL', 'ls /backups/keru-*.dump >/dev/null 2>&1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
   # Webapp Angular compilada, servida por nginx (mismo profile "app"). El nginx proxya
   # /api -> api:3000 y /media -> floci (ver nginx.conf en Keru-Webapp). El repo de la
   # webapp se asume hermano de este; si no, apuntar KERU_WEBAPP_DIR a su checkout.
@@ -129,3 +179,5 @@ volumes:
   keru_pgdata:
   keru_redisdata:
   keru_flocidata:
+  # KER-35: dumps del servicio backup. Mismo host que la base (gap conocido: sin offsite).
+  keru_backups:
