@@ -12,10 +12,23 @@ export interface RatingAggregate {
   count: number;
 }
 
+/** Reseña propia del viewer sobre un servicio (UC-16: una por parte). */
+export interface OwnReview {
+  rating: number;
+  comment: string | null;
+}
+
 export interface ReputationReader {
   /** Agregados (promedio/cantidad) SOLO sobre reseñas reveladas (NFR-22), por sujeto. */
   aggregatesFor(
     subjectType: 'caregiver' | 'patient',
     subjectIds: string[],
   ): Promise<Record<string, RatingAggregate>>;
+
+  /**
+   * Reseñas del propio autor para N servicios en bloque (cards de UC-09/10 sin N+1),
+   * clave = requestId. Incluye selladas: el autor siempre puede ver SU reseña (NFR-21
+   * sella la de la contraparte, no la propia).
+   */
+  myReviewsFor(requestIds: string[], authorAccountId: string): Promise<Record<string, OwnReview>>;
 }

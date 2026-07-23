@@ -55,6 +55,7 @@ function makeManager(overrides: Record<string, unknown> = {}): HiringManager {
     pubsub: { publish: jest.fn().mockResolvedValue({ id: 'evt-1' }), enqueue: jest.fn() },
     reputation: {
       aggregatesFor: jest.fn().mockResolvedValue({ 'cg-1': { average: 4.5, count: 2 } }),
+      myReviewsFor: jest.fn().mockResolvedValue({}),
     },
     ...overrides,
   };

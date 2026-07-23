@@ -91,6 +91,18 @@ describe('E2E · Completado vs pagado-declarado (UC-09/17/21, Decouple row 49)',
     expect(review.body.revealed).toBe(false); // sellada hasta la contraparte o la ventana (NFR-21)
   });
 
+  it('el listado del solicitante trae myReview con su reseña aun sellada; el del cuidador todavía no (KER-39)', async () => {
+    const mine = await http(app).get('/api/v1/hiring-requests').set(bearer(familiar.token));
+    expect(mine.status).toBe(200);
+    const myItem = mine.body.find((r: { id: string }) => r.id === requestId);
+    expect(myItem.myReview).toEqual({ rating: 5, comment: 'Excelente servicio' });
+
+    const theirs = await http(app).get('/api/v1/caregiver/requests').set(bearer(caregiver.account.token));
+    expect(theirs.status).toBe(200);
+    const theirItem = theirs.body.find((r: { id: string }) => r.id === requestId);
+    expect(theirItem.myReview).toBeUndefined();
+  });
+
   it('declarar el pago es opcional, post-cierre e idempotente (honor-mark)', async () => {
     const first = await http(app)
       .post(`/api/v1/hiring-requests/${requestId}/declare-paid`)
@@ -113,5 +125,10 @@ describe('E2E · Completado vs pagado-declarado (UC-09/17/21, Decouple row 49)',
 
     expect(review.status).toBe(201);
     expect(review.body.revealed).toBe(true);
+
+    // Tras reseñar, la bandeja del cuidador también trae SU reseña (KER-39).
+    const theirs = await http(app).get('/api/v1/caregiver/requests').set(bearer(caregiver.account.token));
+    const theirItem = theirs.body.find((r: { id: string }) => r.id === requestId);
+    expect(theirItem.myReview).toEqual({ rating: 4, comment: 'Familia atenta' });
   });
 });

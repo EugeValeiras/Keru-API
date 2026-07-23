@@ -95,7 +95,11 @@ export class MarketplaceController {
   @ApiOkResponse({ type: RequestResponseDto, isArray: true })
   async myRequests(@CurrentAccount() account: AuthPrincipal): Promise<RequestResponseDto[]> {
     return (await this.hiring.listMyRequests(account.accountId)).map((i) =>
-      RequestResponseDto.from(i.request, { viewer: 'requester', caregiverName: i.caregiverName }),
+      RequestResponseDto.from(i.request, {
+        viewer: 'requester',
+        caregiverName: i.caregiverName,
+        myReview: i.myReview,
+      }),
     );
   }
 

@@ -60,11 +60,18 @@ export class CaregiverProfileDto extends CaregiverCardDto {
   }
 }
 
+/** Reseña que el viewer ya dejó sobre este servicio (UC-16: una por parte, KER-39). */
+export class MyReviewDto {
+  @ApiProperty({ minimum: 1, maximum: 5 }) rating!: number;
+  @ApiPropertyOptional({ type: String, nullable: true }) comment?: string | null;
+}
+
 /** Vista sobre la solicitud: qué campos privados se exponen según quién mira (UC-10). */
 export interface RequestViewOptions {
   viewer: 'requester' | 'caregiver';
   patientName?: string;
   caregiverName?: string;
+  myReview?: MyReviewDto;
 }
 
 /** Solicitud de contratación (UC-09/10). */
@@ -101,6 +108,12 @@ export class RequestResponseDto {
   })
   noShowReportedAt?: Date;
   @ApiProperty({ description: 'Tarifa pinneada al solicitar (NFR-03/23)' }) ratePerHourSnapshot!: string;
+  @ApiPropertyOptional({
+    type: MyReviewDto,
+    description:
+      'La reseña que el viewer ya dejó sobre este servicio, si existe (UC-16: una por parte, KER-39). Siempre visible para su autor, incluso sellada (NFR-21).',
+  })
+  myReview?: MyReviewDto;
 
   static from(r: HiringRequest, view: RequestViewOptions): RequestResponseDto {
     const contactVisible =
@@ -121,6 +134,7 @@ export class RequestResponseDto {
       paidDeclaredAt: r.paidDeclaredAt ?? undefined,
       noShowReportedAt: r.noShowReportedAt ?? undefined,
       ratePerHourSnapshot: r.ratePerHourSnapshot,
+      myReview: view.myReview,
     };
   }
 }

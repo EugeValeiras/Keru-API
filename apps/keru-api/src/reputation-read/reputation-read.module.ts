@@ -1,5 +1,5 @@
 import { Global, Injectable, Module } from '@nestjs/common';
-import { REPUTATION_READER, RatingAggregate, ReputationReader } from '@keru/core';
+import { OwnReview, REPUTATION_READER, RatingAggregate, ReputationReader } from '@keru/core';
 import { ReputationModule, ReviewAccess } from '@keru/reputation';
 
 /**
@@ -18,6 +18,16 @@ export class KeruReputationReader implements ReputationReader {
     subjectIds: string[],
   ): Promise<Record<string, RatingAggregate>> {
     return this.reviews.aggregateMany(subjectType, subjectIds);
+  }
+
+  async myReviewsFor(
+    requestIds: string[],
+    authorAccountId: string,
+  ): Promise<Record<string, OwnReview>> {
+    const reviews = await this.reviews.listByRequestsAndAuthor(requestIds, authorAccountId);
+    return Object.fromEntries(
+      reviews.map((r) => [r.requestId, { rating: r.rating, comment: r.comment }]),
+    );
   }
 }
 

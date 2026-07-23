@@ -19,7 +19,11 @@ export class CaregiverRequestsController {
   @ApiOkResponse({ type: RequestResponseDto, isArray: true })
   async list(@CurrentAccount() account: AuthPrincipal): Promise<RequestResponseDto[]> {
     return (await this.hiring.listRequestsForCaregiverAccount(account.accountId)).map((i) =>
-      RequestResponseDto.from(i.request, { viewer: 'caregiver', patientName: i.patientName }),
+      RequestResponseDto.from(i.request, {
+        viewer: 'caregiver',
+        patientName: i.patientName,
+        myReview: i.myReview,
+      }),
     );
   }
 
