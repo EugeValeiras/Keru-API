@@ -62,12 +62,20 @@ export async function signup(
   app: INestApplication,
   role: 'patient' | 'family' | 'caregiver',
   displayName = 'Cuenta E2E',
+  opts: { verifyEmail?: boolean } = {},
 ): Promise<TestAccount> {
   const email = `${role}-${randomUUID()}@e2e.keru.test`;
   const password = 'S3gura!123';
   const res = await http(app).post('/api/v1/auth/signup').send({ email, password, role, displayName });
   if (res.status !== 201) {
     throw new Error(`signup ${role} falló: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+  // UC-04 A5: el self-signup arranca con emailVerified=false. La mayoría de los specs necesitan
+  // una cuenta operativa (p. ej. invitar exige email verificado), así que verificamos por SQL por
+  // default — mismo criterio que signupAdmin promueve el rol. El spec de verificación de email
+  // pasa { verifyEmail: false } para ejercitar el flujo y el gate reales.
+  if (opts.verifyEmail !== false) {
+    await app.get(DataSource).query(`UPDATE account SET "emailVerified" = true WHERE id = $1`, [res.body.accountId]);
   }
   return { accountId: res.body.accountId, email, password, token: res.body.accessToken };
 }

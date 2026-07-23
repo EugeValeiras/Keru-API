@@ -94,6 +94,29 @@ export class PasswordResetConfirmDto {
   newPassword!: string;
 }
 
+/** UC-04 A5 · Pedir/reenviar el email de verificación. Responde SIEMPRE 200 (anti-enumeración). */
+export class EmailVerificationRequestDto {
+  @ApiProperty({ example: 'familiar@test.com' })
+  @IsEmail()
+  email!: string;
+}
+
+export class EmailVerificationRequestResponseDto {
+  @ApiProperty({
+    example: true,
+    description: 'Siempre true: no revela si el email existe ni si ya está verificado (anti-enumeración, UC-04 A5).',
+  })
+  ok!: boolean;
+}
+
+/** UC-04 A5 · Confirmación de verificación: token de un solo uso recibido por email. */
+export class EmailVerificationConfirmDto {
+  @ApiProperty({ description: 'Token de un solo uso recibido por email' })
+  @IsString()
+  @MinLength(1)
+  token!: string;
+}
+
 export class StepUpResponseDto {
   @ApiProperty({ description: 'Token corto con claim step_up: acompaña la operación sensible en x-step-up-token' })
   stepUpToken!: string;
@@ -121,4 +144,11 @@ export class AuthResponseDto {
 
   @ApiPropertyOptional({ type: String, nullable: true, description: 'UC-23 · Foto de la cuenta para el avatar del header (null si no cargó una)' })
   photoUrl?: string | null;
+
+  @ApiProperty({
+    example: false,
+    description:
+      'UC-04 A5 · Si el email de la cuenta está verificado. El self-signup arranca en false; el cliente muestra el banner y gatea acciones sensibles hasta que confirme.',
+  })
+  emailVerified!: boolean;
 }

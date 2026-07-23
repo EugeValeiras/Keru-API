@@ -74,6 +74,25 @@ export class EmailUtility {
     );
   }
 
+  /** UC-04 A5: link de verificación de email del self-signup (token de un solo uso, mejor esfuerzo). */
+  async sendEmailVerificationEmail(input: { to: string; token: string; expiresAt: Date }): Promise<void> {
+    const verifyUrl = `${this.appBaseUrl}/verify-email?token=${input.token}`;
+    await this.send(
+      input.to,
+      'Verificá tu email en Keru',
+      [
+        `Hola,`,
+        ``,
+        `Creaste una cuenta en Keru con este email. Para activarla del todo, verificá que el email es tuyo.`,
+        ``,
+        `Confirmá tu email entrando acá: ${verifyUrl}`,
+        ``,
+        `El link vence a los 30 minutos y sirve una sola vez.`,
+        `Si no creaste esta cuenta, podés ignorar este mensaje.`,
+      ].join('\n'),
+    );
+  }
+
   private async send(to: string, subject: string, body: string): Promise<void> {
     await this.ensureIdentity();
     await this.client.send(
