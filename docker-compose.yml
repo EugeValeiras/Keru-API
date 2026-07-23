@@ -101,6 +101,14 @@ services:
         condition: service_healthy
       floci:
         condition: service_healthy
+    # KER-33: probe real de la API (DB + Redis + lag del outbox); 503 = unhealthy y el
+    # orquestador la reinicia. wget viene en busybox (node:alpine), no hace falta curl.
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/api/v1/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Webapp Angular compilada, servida por nginx (mismo profile "app"). El nginx proxya
   # /api -> api:3000 y /media -> floci (ver nginx.conf en Keru-Webapp). El repo de la
@@ -115,7 +123,7 @@ services:
       - '8080:80'
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   keru_pgdata:

@@ -24,6 +24,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors(); // dev: abierto; en prod restringir origins por env.
+  // KER-33: sin esto, un SIGTERM (deploy) mata el proceso con jobs BullMQ a mitad de vuelo.
+  // Con los hooks, @nestjs/bullmq cierra el worker en onApplicationShutdown esperando el job activo.
+  app.enableShutdownHooks();
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' }); // /api/v1/...
   app.useGlobalPipes(

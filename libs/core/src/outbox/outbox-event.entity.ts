@@ -30,6 +30,22 @@ export class OutboxEvent {
   @Column({ type: 'timestamptz', nullable: true })
   dispatchedAt!: Date | null;
 
+  /** Intentos de dispatch consumidos (KER-33: retry con backoff). */
+  @Column({ type: 'int', default: 0 })
+  attempts!: number;
+
+  /** Mensaje del último fallo de dispatch (traza para el panel admin ops). */
+  @Column({ type: 'text', nullable: true })
+  lastError!: string | null;
+
+  /**
+   * Dead-letter (KER-33, G6): agotó los reintentos. NULL = vivo. Un evento dead-lettered
+   * queda visible (admin/ops/outbox/dead-letter) y reencolable — nunca se descarta en silencio.
+   */
+  @Column({ type: 'timestamptz', nullable: true })
+  @Index()
+  deadLetteredAt!: Date | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 }

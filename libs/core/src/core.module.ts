@@ -11,6 +11,7 @@ import { RolesGuard } from './auth/roles.guard';
 import { OutboxEvent } from './outbox/outbox-event.entity';
 import { OUTBOX_QUEUE } from './outbox/outbox.constants';
 import { PubSubUtility } from './outbox/pubsub.util';
+import { HealthUtility } from './health/health.util';
 import { TransactionUtility } from './transaction/transaction.util';
 import { AuditLog } from './audit/audit-log.entity';
 import { AuditUtility } from './audit/audit.util';
@@ -53,9 +54,10 @@ import { FileStorageUtility } from './files/file-storage.util';
       }),
     }),
   ],
-  providers: [PubSubUtility, TransactionUtility, AuditUtility, EmailUtility, FileStorageUtility, JwtAuthGuard, RolesGuard],
+  providers: [PubSubUtility, HealthUtility, TransactionUtility, AuditUtility, EmailUtility, FileStorageUtility, JwtAuthGuard, RolesGuard],
   exports: [
     PubSubUtility,
+    HealthUtility,
     TransactionUtility,
     AuditUtility,
     EmailUtility,
