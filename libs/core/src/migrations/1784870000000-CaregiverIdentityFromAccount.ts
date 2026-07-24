@@ -13,11 +13,13 @@ export class CaregiverIdentityFromAccount1784870000000 implements MigrationInter
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1) Backfill no-destructivo: no perder ninguna foto seteada (gana la de la cuenta si existe).
+    //    caregiver.accountId es varchar y account.id es uuid: casteo explícito (SQL crudo no
+    //    aplica la coerción del ORM; sin cast rompe con "operator does not exist: varchar = uuid").
     await queryRunner.query(`
       UPDATE "account" a
       SET "photoUrl" = c."photoUrl"
       FROM "caregiver" c
-      WHERE c."accountId" = a.id
+      WHERE c."accountId" = a."id"::text
         AND a."photoUrl" IS NULL
         AND c."photoUrl" IS NOT NULL
     `);
@@ -35,7 +37,7 @@ export class CaregiverIdentityFromAccount1784870000000 implements MigrationInter
       UPDATE "caregiver" c
       SET "displayName" = a."displayName", "photoUrl" = a."photoUrl"
       FROM "account" a
-      WHERE a.id = c."accountId"
+      WHERE a."id"::text = c."accountId"
     `);
     // displayName vuelve a ser NOT NULL (era obligatorio); las filas ya quedaron backfilleadas.
     await queryRunner.query(`ALTER TABLE "caregiver" ALTER COLUMN "displayName" SET NOT NULL`);
