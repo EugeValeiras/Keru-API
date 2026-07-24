@@ -1452,7 +1452,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Datos de la invitación para la pantalla de confirmación"
+            "description": "Datos de la invitación para la pantalla de confirmación y el registro por invitación (KER-67)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreviewDto"
+                }
+              }
+            }
           }
         },
         "summary": "UC-03 · Previsualizar invitación",
@@ -4644,6 +4651,48 @@
           "expiresAt",
           "createdAt",
           "invitedByAccountId"
+        ]
+      },
+      "InvitationPreviewDto": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientName": {
+            "type": "string",
+            "description": "Nombre del paciente al que se invita a acompañar."
+          },
+          "invitedEmail": {
+            "type": "string",
+            "description": "Email invitado: prellena y bloquea el email del registro (NFR-19)."
+          },
+          "roleToGrant": {
+            "type": "string",
+            "enum": [
+              "manager",
+              "viewer"
+            ],
+            "description": "Rol del vínculo a otorgar (informativo; lo fijó quien invitó). KER-67."
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Vence a los 30 minutos de emitida (OQ-2)."
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "true solo si está pendiente y no expiró; false → no se puede confirmar."
+          }
+        },
+        "required": [
+          "patientId",
+          "patientName",
+          "invitedEmail",
+          "roleToGrant",
+          "expiresAt",
+          "valid"
         ]
       },
       "InvitationConfirmedDto": {

@@ -13,6 +13,7 @@ import {
   CreateInvitationDto,
   EmittedInvitationDto,
   InvitationConfirmedDto,
+  InvitationPreviewDto,
   InvitationResponseDto,
 } from './manager/dto/invitation.dto';
 
@@ -75,8 +76,8 @@ export class InvitationController {
   @Get('invitations/:token')
   @Throttle({ default: { limit: THROTTLE_LIMITS.invitationPreview, ttl: THROTTLE_TTL_MS } })
   @ApiOperation({ summary: 'UC-03 · Previsualizar invitación' })
-  @ApiOkResponse({ description: 'Datos de la invitación para la pantalla de confirmación' })
-  preview(@Param('token') token: string) {
+  @ApiOkResponse({ type: InvitationPreviewDto, description: 'Datos de la invitación para la pantalla de confirmación y el registro por invitación (KER-67)' })
+  preview(@Param('token') token: string): Promise<InvitationPreviewDto> {
     return this.membership.previewInvitation(token);
   }
 

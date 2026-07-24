@@ -401,6 +401,20 @@ describe('UC-03 · gestión de invitaciones emitidas (listar y revocar)', () => 
 
     expect(preview.valid).toBe(false);
   });
+
+  it('KER-67 · Dado una invitación pendiente, cuando se previsualiza, entonces expone roleToGrant e invitedEmail para el registro por invitación', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['findInvitationByToken'].mockResolvedValue(
+      invitation({ roleToGrant: 'manager', invitedEmail: 'invitada@test.com' }),
+    );
+
+    const preview = await manager.previewInvitation('tok-1');
+
+    expect(preview.roleToGrant).toBe('manager');
+    expect(preview.invitedEmail).toBe('invitada@test.com');
+    expect(preview.valid).toBe(true);
+  });
 });
 
 describe('UC-02 A2 · re-postulación del cuidador rechazado', () => {
