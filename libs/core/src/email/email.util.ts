@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SESClient, SendEmailCommand, VerifyEmailIdentityCommand } from '@aws-sdk/client-ses';
+import { BrandedEmailContent, renderBrandedEmail } from './email.templates';
 
 /**
  * EmailUtility (constitution §3.1, utility transversal como Audit/PubSub).
@@ -39,69 +40,71 @@ export class EmailUtility {
     expiresAt: Date;
   }): Promise<void> {
     const inviteUrl = `${this.appBaseUrl}/invite/${input.token}`;
-    await this.send(
-      input.to,
-      `Te invitaron a acompañar a ${input.patientName} en Keru`,
-      [
-        `Hola,`,
-        ``,
-        `Te invitaron a sumarte al círculo de cuidado de ${input.patientName} en Keru.`,
-        ``,
-        `Aceptá la invitación entrando acá: ${inviteUrl}`,
-        ``,
-        `El link vence a los 30 minutos y sirve una sola vez.`,
-        `Si no esperabas esta invitación, podés ignorar este mensaje.`,
-      ].join('\n'),
-    );
+    await this.send(input.to, `Te invitaron a acompañar a ${input.patientName} en Keru`, {
+      previewText: `Aceptá la invitación para acompañar a ${input.patientName} en Keru.`,
+      heading: 'Te invitaron a un círculo de cuidado',
+      intro: [
+        'Hola,',
+        `Te invitaron a sumarte al círculo de cuidado de ${input.patientName} en Keru: el lugar donde la familia y los cuidadores acompañan juntos, con todo a la vista.`,
+      ],
+      cta: { label: 'Aceptar invitación', url: inviteUrl },
+      afterCta: [
+        'El link vence a los 30 minutos y sirve una sola vez.',
+        'Si no esperabas esta invitación, podés ignorar este mensaje.',
+      ],
+      reason: `Recibiste este correo porque alguien te invitó a acompañar a ${input.patientName} en Keru.`,
+    });
   }
 
   /** UC-04 A4: link de recuperación de contraseña (token de un solo uso, mejor esfuerzo). */
   async sendPasswordResetEmail(input: { to: string; token: string; expiresAt: Date }): Promise<void> {
     const resetUrl = `${this.appBaseUrl}/password-reset/confirm?token=${input.token}`;
-    await this.send(
-      input.to,
-      'Recuperá tu contraseña de Keru',
-      [
-        `Hola,`,
-        ``,
-        `Recibimos un pedido para restablecer la contraseña de tu cuenta de Keru.`,
-        ``,
-        `Creá una nueva contraseña entrando acá: ${resetUrl}`,
-        ``,
-        `El link vence a los 30 minutos y sirve una sola vez.`,
-        `Si no pediste esto, podés ignorar este mensaje: tu contraseña no cambia hasta que uses el link.`,
-      ].join('\n'),
-    );
+    await this.send(input.to, 'Recuperá tu contraseña de Keru', {
+      previewText: 'Creá una nueva contraseña para tu cuenta de Keru.',
+      heading: 'Recuperá tu contraseña',
+      intro: ['Hola,', 'Recibimos un pedido para restablecer la contraseña de tu cuenta de Keru.'],
+      cta: { label: 'Crear nueva contraseña', url: resetUrl },
+      afterCta: [
+        'El link vence a los 30 minutos y sirve una sola vez.',
+        'Si no pediste esto, podés ignorar este mensaje: tu contraseña no cambia hasta que uses el link.',
+      ],
+      reason: 'Recibiste este correo porque se pidió recuperar la contraseña de esta cuenta de Keru.',
+    });
   }
 
   /** UC-04 A5: link de verificación de email del self-signup (token de un solo uso, mejor esfuerzo). */
   async sendEmailVerificationEmail(input: { to: string; token: string; expiresAt: Date }): Promise<void> {
     const verifyUrl = `${this.appBaseUrl}/verify-email?token=${input.token}`;
-    await this.send(
-      input.to,
-      'Verificá tu email en Keru',
-      [
-        `Hola,`,
-        ``,
-        `Creaste una cuenta en Keru con este email. Para activarla del todo, verificá que el email es tuyo.`,
-        ``,
-        `Confirmá tu email entrando acá: ${verifyUrl}`,
-        ``,
-        `El link vence a los 30 minutos y sirve una sola vez.`,
-        `Si no creaste esta cuenta, podés ignorar este mensaje.`,
-      ].join('\n'),
-    );
+    await this.send(input.to, 'Verificá tu email en Keru', {
+      previewText: 'Verificá tu email para activar del todo tu cuenta de Keru.',
+      heading: 'Verificá tu email',
+      intro: [
+        'Hola,',
+        'Creaste una cuenta en Keru con este email. Para activarla del todo, confirmá que el email es tuyo.',
+      ],
+      cta: { label: 'Verificar mi email', url: verifyUrl },
+      afterCta: [
+        'El link vence a los 30 minutos y sirve una sola vez.',
+        'Si no creaste esta cuenta, podés ignorar este mensaje.',
+      ],
+      reason: 'Recibiste este correo porque se creó una cuenta en Keru con esta dirección.',
+    });
   }
 
-  private async send(to: string, subject: string, body: string): Promise<void> {
+  private async send(to: string, subject: string, content: BrandedEmailContent): Promise<void> {
     await this.ensureIdentity();
+    const { html, text } = renderBrandedEmail(content);
     await this.client.send(
       new SendEmailCommand({
         Source: this.from,
         Destination: { ToAddresses: [to] },
         Message: {
           Subject: { Data: subject, Charset: 'UTF-8' },
-          Body: { Text: { Data: body, Charset: 'UTF-8' } },
+          // Multipart alternativo: SES arma text/plain + text/html; el cliente elige.
+          Body: {
+            Html: { Data: html, Charset: 'UTF-8' },
+            Text: { Data: text, Charset: 'UTF-8' },
+          },
         },
       }),
     );
