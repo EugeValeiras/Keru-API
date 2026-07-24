@@ -8,10 +8,16 @@ import {
 } from '../../resource-access/entities/caregiver.entity';
 import { CertificationView, ownerCertifications } from './certification-view.dto';
 
-/** Detalle completo del cuidador para el back-office (UC-19): incluye la documentación a verificar. */
+/**
+ * Detalle completo del cuidador para el back-office (UC-19): incluye la documentación a verificar.
+ *
+ * Minimización de datos (KER-81): NO expone el `accountId` interno del cuidador. Ningún flujo del
+ * back-office necesita correlacionar el perfil con su `Account` Keru subyacente (aprobar/rechazar y
+ * descargar documentos operan por el `id` del cuidador), así que exponerlo violaba §2 sin razón
+ * funcional. El listado admin (`CaregiverResponseDto`) tampoco lo expone.
+ */
 export class CaregiverDetailDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
-  @ApiProperty() accountId!: string;
   @ApiProperty() displayName!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) photoUrl?: string | null;
   @ApiProperty({ enum: ['pending', 'approved', 'rejected', 'deactivated'] }) status!: CaregiverStatus;
@@ -31,7 +37,6 @@ export class CaregiverDetailDto {
   static from(c: Caregiver): CaregiverDetailDto {
     return {
       id: c.id,
-      accountId: c.accountId,
       displayName: c.displayName,
       photoUrl: c.photoUrl,
       status: c.status,
