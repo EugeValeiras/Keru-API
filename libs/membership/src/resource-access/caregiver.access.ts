@@ -84,12 +84,47 @@ export class CaregiverAccess {
 
     const caregiver = this.caregivers.create({
       ...input,
-      certifications: input.certifications.map((c) => ({ ...c, verified: false })),
+      // Las certificaciones ya vienen construidas por el Manager (id, status pending, documentKey…).
+      certifications: input.certifications,
       status: 'pending',
       badges: { certifications: false, identity: false, background: false },
       createdByOperationId: operationId,
     });
     return this.withIdentity(await this.caregivers.save(caregiver));
+  }
+
+  /**
+   * KER-52 (UC-02 A4) · Agrega una certificación nueva (nace `pending`) al array del perfil.
+   * Idempotente por `operationId` (NFR-34): si ya existe una cert con ese operationId, no la duplica.
+   * Las certificaciones son jsonb embebido, por eso el append es read-modify-write acá.
+   */
+  async addCertification(
+    caregiverId: string,
+    certification: Certification,
+    operationId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager ? manager.getRepository(Caregiver) : this.caregivers;
+    const caregiver = await repo.findOne({ where: { id: caregiverId } });
+    if (!caregiver) return;
+    const certs = caregiver.certifications ?? [];
+    if (certs.some((c) => c.operationId && c.operationId === operationId)) return; // at-most-once
+    certs.push(certification);
+    await repo.update(caregiverId, { certifications: certs });
+  }
+
+  /**
+   * KER-52 (UC-19) · Reemplaza el array de certificaciones (aprobar/rechazar por-cert). Set de
+   * valores: naturalmente idempotente, no requiere operationId (NFR-34, aclaración). El Manager
+   * arma el array ya mutado y lo persiste junto con las insignias en la misma llamada.
+   */
+  async setCertifications(
+    caregiverId: string,
+    certifications: Certification[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager ? manager.getRepository(Caregiver) : this.caregivers;
+    await repo.update(caregiverId, { certifications });
   }
 
   async findById(id: string): Promise<Caregiver | null> {
@@ -157,8 +192,9 @@ export class CaregiverAccess {
   }
 
   /** UC-19. Actualiza las insignias de verificación (los tres niveles son independientes). */
-  async setBadges(id: string, badges: VerificationBadges): Promise<void> {
-    await this.caregivers.update(id, { badges });
+  async setBadges(id: string, badges: VerificationBadges, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(Caregiver) : this.caregivers;
+    await repo.update(id, { badges });
   }
 
   /**
@@ -205,9 +241,10 @@ export class CaregiverAccess {
 
   async resubmitProfile(caregiverId: string, input: ResubmitCaregiverInput): Promise<void> {
     // Identidad (nombre/foto) no vive acá (ADR-0003): se gestiona por la cuenta (UC-23).
+    // Las certificaciones ya vienen reconstruidas por el Manager (nuevas, pending).
     await this.caregivers.update(caregiverId, {
       specialties: input.specialties,
-      certifications: input.certifications.map((c) => ({ ...c, verified: false })),
+      certifications: input.certifications,
       availability: input.availability,
       rates: input.rates,
       zone: input.zone,

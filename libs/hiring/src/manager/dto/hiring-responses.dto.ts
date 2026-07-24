@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Caregiver } from '@keru/membership';
+import { Caregiver, CertificationView, publicCertifications } from '@keru/membership';
 import {
   HIRING_TERMINAL_REASONS,
   HiringRequest,
@@ -48,13 +48,18 @@ export class CaregiverCardDto {
 
 /** Perfil completo del cuidador (UC-07). */
 export class CaregiverProfileDto extends CaregiverCardDto {
-  @ApiProperty({ type: Object, isArray: true }) certifications!: Caregiver['certifications'];
+  @ApiProperty({
+    type: [CertificationView],
+    description:
+      'KER-52: SOLO las certificaciones aprobadas, cada una con su insignia (catálogo). Las pendientes/rechazadas y la key privada del documento NO se exponen al público.',
+  })
+  certifications!: CertificationView[];
   @ApiProperty({ type: Object, isArray: true }) availability!: Caregiver['availability'];
 
   static fromProfile(c: Caregiver): CaregiverProfileDto {
     return {
       ...CaregiverCardDto.from(c),
-      certifications: c.certifications,
+      certifications: publicCertifications(c.certifications),
       availability: c.availability,
     };
   }

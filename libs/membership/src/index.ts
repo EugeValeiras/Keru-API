@@ -7,4 +7,7 @@ export * from './resource-access/entities/patient-link.entity';
 export * from './resource-access/entities/account.entity';
 export * from './resource-access/entities/caregiver.entity';
 export * from './resource-access/entities/caregiver-rate-version.entity';
+export * from './resource-access/entities/certification-catalog.entity';
 export * from './resource-access/entities/family-invitation.entity';
+export * from './certification-catalog';
+export * from './manager/dto/certification-view.dto';

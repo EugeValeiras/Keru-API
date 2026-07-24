@@ -26,6 +26,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
       findAccountById: jest.fn().mockResolvedValue(account),
     },
     caregiverAccess: {},
+    catalogAccess: { list: jest.fn().mockResolvedValue([]) },
     jwt: { signAsync: jest.fn().mockResolvedValue('signed-token') },
     pubsub: {
       publish: jest.fn().mockResolvedValue({ id: 'evt-1' }),
@@ -43,6 +44,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     deps.tx as never,
     deps.accountAccess as never,
     deps.caregiverAccess as never,
+    deps.catalogAccess as never,
     deps.jwt as never,
     deps.pubsub as never,
     deps.audit as never,

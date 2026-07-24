@@ -15,6 +15,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WithOperationIdentity } from '@keru/core';
+import { CERTIFICATION_CATALOG_KEYS } from '../../certification-catalog';
 
 const CARE_TYPES = [
   'elder-care',
@@ -28,12 +29,16 @@ const CARE_TYPES = [
 ];
 export const MODALITIES = ['home', 'hospital'];
 
+/**
+ * KER-52 · Certificación en el alta/re-postulación. El tipo se elige del catálogo finito
+ * (`catalogKey`, no texto libre — fuera de catálogo → 400) y trae la `documentKey` privada obtenida
+ * al subir el documento por `POST /files/documents` (nunca una URL pública).
+ */
 export class CertificationDto {
-  @ApiProperty({ example: 'Enfermería' })
+  @ApiProperty({ enum: CERTIFICATION_CATALOG_KEYS, example: 'nursing-degree' })
   @IsString()
-  @MinLength(1)
-  @MaxLength(120)
-  type!: string;
+  @IsIn(CERTIFICATION_CATALOG_KEYS)
+  catalogKey!: string;
 
   // A1: institución y año son obligatorios.
   @ApiProperty({ example: 'Universidad de Buenos Aires' })
@@ -47,6 +52,18 @@ export class CertificationDto {
   @Min(1950)
   @Max(2100)
   year!: number;
+
+  @ApiProperty({ description: 'Key del documento privado (de POST /files/documents). NO es una URL.', example: 'private/documents/uuid.pdf' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(300)
+  documentKey!: string;
+
+  @ApiProperty({ example: 'application/pdf' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  documentContentType!: string;
 }
 
 export class AvailabilityDto {

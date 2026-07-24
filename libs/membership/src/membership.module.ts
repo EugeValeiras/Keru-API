@@ -5,11 +5,13 @@ import { PatientLink } from './resource-access/entities/patient-link.entity';
 import { Account } from './resource-access/entities/account.entity';
 import { Caregiver } from './resource-access/entities/caregiver.entity';
 import { CaregiverRateVersion } from './resource-access/entities/caregiver-rate-version.entity';
+import { CertificationCatalog } from './resource-access/entities/certification-catalog.entity';
 import { FamilyInvitation } from './resource-access/entities/family-invitation.entity';
 import { PasswordResetToken } from './resource-access/entities/password-reset-token.entity';
 import { EmailVerificationToken } from './resource-access/entities/email-verification-token.entity';
 import { AccountAccess } from './resource-access/account.access';
 import { CaregiverAccess } from './resource-access/caregiver.access';
+import { CertificationCatalogAccess } from './resource-access/certification-catalog.access';
 import { MembershipManager } from './manager/membership.manager';
 import { MembershipController } from './membership.controller';
 import { AuthController } from './auth.controller';
@@ -34,6 +36,7 @@ import { FilesController } from './files.controller';
       Account,
       Caregiver,
       CaregiverRateVersion,
+      CertificationCatalog,
       FamilyInvitation,
       PasswordResetToken,
       EmailVerificationToken,
@@ -48,7 +51,7 @@ import { FilesController } from './files.controller';
     InvitationController,
     FilesController,
   ],
-  providers: [AccountAccess, CaregiverAccess, MembershipManager],
-  exports: [AccountAccess, CaregiverAccess, MembershipManager],
+  providers: [AccountAccess, CaregiverAccess, CertificationCatalogAccess, MembershipManager],
+  exports: [AccountAccess, CaregiverAccess, CertificationCatalogAccess, MembershipManager],
 })
 export class MembershipModule {}

@@ -3,10 +3,10 @@ import {
   AvailabilitySlot,
   Caregiver,
   CaregiverStatus,
-  Certification,
   Rates,
   VerificationBadges,
 } from '../../resource-access/entities/caregiver.entity';
+import { CertificationView, ownerCertifications } from './certification-view.dto';
 
 /** Detalle completo del cuidador para el back-office (UC-19): incluye la documentación a verificar. */
 export class CaregiverDetailDto {
@@ -15,7 +15,8 @@ export class CaregiverDetailDto {
   @ApiProperty() displayName!: string;
   @ApiProperty({ enum: ['pending', 'approved', 'rejected', 'deactivated'] }) status!: CaregiverStatus;
   @ApiProperty({ type: [String] }) specialties!: string[];
-  @ApiProperty({ type: Object, isArray: true }) certifications!: Certification[];
+  @ApiProperty({ type: [CertificationView], description: 'Certificaciones con estado por-cert + hasDocument (para descargar/aprobar). Sin la key privada.' })
+  certifications!: CertificationView[];
   @ApiProperty({ type: Object, isArray: true }) availability!: AvailabilitySlot[];
   @ApiProperty({ type: Object }) rates!: Rates;
   @ApiProperty() zone!: string;
@@ -33,7 +34,7 @@ export class CaregiverDetailDto {
       displayName: c.displayName,
       status: c.status,
       specialties: c.specialties,
-      certifications: c.certifications,
+      certifications: ownerCertifications(c.certifications),
       availability: c.availability,
       rates: c.rates,
       zone: c.zone,

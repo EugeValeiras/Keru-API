@@ -2,12 +2,35 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 
 export type CaregiverStatus = 'pending' | 'approved' | 'rejected' | 'deactivated';
 
+export type CertificationStatus = 'pending' | 'approved' | 'rejected';
+
+/**
+ * Certificación del cuidador (UC-02 / UC-19). KER-52: el tipo ya no es texto libre — referencia el
+ * catálogo finito (`catalogKey`, ver `certification-catalog.ts`) y lleva un **documento privado**
+ * adjunto (`documentKey`: key del store no público, NUNCA URL pública) que solo el admin descarga.
+ * Cada certificación nace `pending` y oculta al público; el admin la aprueba/rechaza una por una.
+ */
 export interface Certification {
-  type: string;
+  /** Id estable dentro del perfil (UUID): identifica la cert para aprobar/rechazar/descargar. */
+  id: string;
+  /** Clave del catálogo finito (reemplaza el `type` libre). */
+  catalogKey: string;
   institution: string;
   year: number;
-  /** Nace "no verificada"; el admin la verifica en UC-19. */
+  /** Key del documento adjunto en el store PRIVADO (no público, sin URL). */
+  documentKey: string;
+  /** Content-type del documento adjunto (para el header de descarga admin). */
+  documentContentType: string;
+  /** Estado de revisión por-cert (UC-19). Nace `pending`; oculta al público hasta `approved`. */
+  status: CertificationStatus;
+  /** Compat/derivado (UC-02/07): `verified === (status === 'approved')`. */
   verified: boolean;
+  /** operationId del alta de la cert (idempotencia, NFR-34). Interno, no se expone al público. */
+  operationId?: string;
+  reviewedBy: string | null;
+  /** ISO string (jsonb no persiste Date). */
+  reviewedAt: string | null;
+  rejectionReason: string | null;
 }
 
 export interface AvailabilitySlot {
