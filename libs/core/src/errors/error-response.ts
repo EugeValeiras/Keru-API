@@ -21,6 +21,7 @@ export function httpStatusToCode(status: number): string {
     422: 'VALIDATION_ERROR',
     429: 'TOO_MANY_REQUESTS',
     500: 'INTERNAL_ERROR',
+    503: 'SERVICE_UNAVAILABLE',
   };
   return map[status] ?? 'ERROR';
 }

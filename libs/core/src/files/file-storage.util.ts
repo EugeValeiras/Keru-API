@@ -1,5 +1,12 @@
 import { randomUUID } from 'crypto';
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CreateBucketCommand,
@@ -28,6 +35,14 @@ const ALLOWED_DOCUMENT_MIME: Record<string, string> = {
 
 /** Prefijo (no público) donde viven los documentos privados de certificaciones. */
 const PRIVATE_DOCUMENT_PREFIX = 'private/documents/';
+
+/**
+ * KER-75 · Errores de S3 con causa conocida de integración/infra (permisos IAM, bucket inexistente,
+ * región/endpoint equivocados). Los mapeamos a un 503 con mensaje genérico al cliente — el detalle
+ * accionable vive SOLO en el log. El resto de fallos se loguea igual y se re-propaga (→ 500 genérico).
+ * `NoSuchKey`/`NotFound` NO están acá: siguen siendo 404 (documento inexistente, no un fallo de infra).
+ */
+const EXPECTED_S3_ERROR_NAMES = ['AccessDenied', 'NoSuchBucket', 'PermanentRedirect'];
 
 /**
  * FileStorageUtility (constitution §3.1, utility transversal). Guarda imágenes
@@ -74,14 +89,20 @@ export class FileStorageUtility {
     }
     await this.ensureBucket();
     const key = `images/${randomUUID()}.${ext}`;
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: buffer,
-        ContentType: mimeType,
-      }),
-    );
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: buffer,
+          ContentType: mimeType,
+        }),
+      );
+    } catch (err) {
+      // KER-75 · Un fallo de PutObject caía como 500 opaco: lo logueamos antes de propagar.
+      this.logS3Failure('putImage', err);
+      throw err;
+    }
     const url = `${this.publicBaseUrl}/${key}`;
     this.logger.log(`Imagen subida: ${url}`);
     return { url, key };
@@ -99,9 +120,15 @@ export class FileStorageUtility {
     }
     await this.ensureBucket();
     const key = `${PRIVATE_DOCUMENT_PREFIX}${randomUUID()}.${ext}`;
-    await this.client.send(
-      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: mimeType }),
-    );
+    try {
+      await this.client.send(
+        new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: mimeType }),
+      );
+    } catch (err) {
+      // KER-75 · Un fallo de PutObject caía como 500 opaco: lo logueamos antes de propagar.
+      this.logS3Failure('putDocument', err);
+      throw err;
+    }
     this.logger.log(`Documento privado subido: ${key}`);
     return { key, contentType: mimeType };
   }
@@ -125,12 +152,40 @@ export class FileStorageUtility {
         contentType: res.ContentType ?? 'application/octet-stream',
       };
     } catch (err) {
+      // Nuestras propias señales de control (p. ej. el 404 "sin body" de arriba) no son fallos de
+      // S3: se re-propagan tal cual, sin loguearse como un error de storage.
+      if (err instanceof HttpException) throw err;
       const name = (err as { name?: string }).name ?? '';
+      // Caso ya cubierto: el objeto no existe → 404 (documento inexistente), no un fallo de infra.
       if (['NoSuchKey', 'NotFound'].includes(name)) {
         throw new NotFoundException('Documento no encontrado');
       }
+      // KER-75 · Observabilidad: cualquier otro fallo de S3 (AccessDenied, NoSuchBucket, endpoint/
+      // credenciales) caía como un 500 opaco sin pista de la causa. Lo logueamos ANTES de propagar.
+      this.logS3Failure('getPrivateDocument', err);
+      // Errores esperables de integración: 503 con mensaje genérico al cliente; el detalle vive solo
+      // en el log (seguridad UC-19 — nunca se leakea el error de storage ni la key al cliente).
+      if (EXPECTED_S3_ERROR_NAMES.includes(name)) {
+        throw new ServiceUnavailableException('El documento no está disponible en este momento');
+      }
       throw err;
     }
+  }
+
+  /**
+   * KER-75 · Vuelca a ERROR el shape del error del SDK v3 de AWS — `name` + `$metadata.requestId`
+   * (el request-id de S3, correlacionable con CloudWatch) + el bucket — para diagnosticar fallos de
+   * storage sin adivinar. NUNCA loguea la key completa, el binario ni PII (documento privado, UC-19).
+   * Espejo de la observabilidad best-effort del email (KER-66): un fallo de integración jamás es
+   * silencioso, pero su detalle no llega al cliente.
+   */
+  private logS3Failure(operation: string, err: unknown): void {
+    const name = (err as { name?: string }).name ?? 'desconocido';
+    const requestId =
+      (err as { $metadata?: { requestId?: string } }).$metadata?.requestId ?? 'n/d';
+    this.logger.error(
+      `S3 ${operation} falló: name=${name} requestId=${requestId} bucket=${this.bucket}`,
+    );
   }
 
   private async ensureBucket(): Promise<void> {
