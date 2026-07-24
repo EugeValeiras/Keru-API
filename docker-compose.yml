@@ -82,7 +82,7 @@ services:
       # AWS contra el emulador floci (SES para el email de invitación, S3 para fotos).
       AWS_REGION: us-east-1
       AWS_ENDPOINT_URL: http://floci:4566
-      SES_FROM: no-reply@keru.app
+      SES_FROM: no-reply@keru.ar
       S3_BUCKET: keru-media
       # CDN de fotos POR AMBIENTE (KER-70): deploy dev -> https://cdn.dev.keru.ar/media,
       # prod -> https://cdn.keru.ar/media (mismo host que EMAIL_LOGO_URL). En este stack LOCAL se
@@ -97,7 +97,7 @@ services:
       # Inyectar por env del host; vacío = push deshabilitado, la campana sigue (§2.7).
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:no-reply@keru.app}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:no-reply@keru.ar}
       # KER-14: en este stack local la suite E2E hace varios signups por corrida detrás del
       # nginx (una sola IP); en prod real dejar el default estricto (5/min) sin esta env.
       THROTTLE_AUTH_LIMIT: ${THROTTLE_AUTH_LIMIT:-50}

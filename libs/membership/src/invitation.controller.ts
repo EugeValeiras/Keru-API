@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -21,7 +22,10 @@ import {
 @ApiTags('Invitations')
 @Controller()
 export class InvitationController {
-  constructor(private readonly membership: MembershipManager) {}
+  constructor(
+    private readonly membership: MembershipManager,
+    private readonly config: ConfigService,
+  ) {}
 
   /** Emitir invitación desde la ficha del paciente (requiere estar vinculado). */
   @Post('patients/:patientId/invitations')
@@ -40,7 +44,7 @@ export class InvitationController {
       dto.invitedEmail,
       dto.role ?? 'viewer',
     );
-    return InvitationResponseDto.from(inv);
+    return InvitationResponseDto.from(inv, this.config.get<string>('APP_BASE_URL', 'http://localhost:4200'));
   }
 
   /** UC-03 A4 · Invitaciones emitidas del paciente (requiere estar vinculado). */

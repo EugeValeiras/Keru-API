@@ -14,7 +14,7 @@ export class PatientResponseDto {
   age!: number;
 
   @ApiPropertyOptional({
-    example: 'https://cdn.keru.app/p/rosa.jpg',
+    example: 'https://cdn.keru.ar/p/rosa.jpg',
     description: 'Foto del paciente si tiene una cargada; ausente si no. El cliente cae al avatar de iniciales.',
   })
   photoUrl?: string;
@@ -59,7 +59,7 @@ export class PatientRecordDto {
   @ApiProperty({ example: 78, description: 'Edad derivada de la fecha de nacimiento.' })
   age!: number;
 
-  @ApiPropertyOptional({ example: 'https://cdn.keru.app/p/rosa.jpg' })
+  @ApiPropertyOptional({ example: 'https://cdn.keru.ar/p/rosa.jpg' })
   photoUrl?: string;
 
   @ApiProperty({ example: 'Hipertensión' })

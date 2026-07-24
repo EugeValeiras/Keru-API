@@ -45,7 +45,7 @@ export class RegisterPatientDto extends WithOperationIdentity {
   @IsDateString()
   birthDate!: string;
 
-  @ApiPropertyOptional({ example: 'https://cdn.keru.app/p/rosa.jpg' })
+  @ApiPropertyOptional({ example: 'https://cdn.keru.ar/p/rosa.jpg' })
   @IsOptional()
   @IsString()
   @MaxLength(500)

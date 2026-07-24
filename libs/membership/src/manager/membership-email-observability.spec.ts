@@ -77,7 +77,7 @@ const flush = () => new Promise((r) => setImmediate(r));
 
 describe('KER-66 · maskEmailForLog (anti-PII, conserva el dominio para diagnosticar SES/floci)', () => {
   it('enmascara el local y conserva el dominio', () => {
-    expect(maskEmailForLog('invitado@keru.app')).toBe('i*******@keru.app');
+    expect(maskEmailForLog('invitado@keru.ar')).toBe('i*******@keru.ar');
     expect(maskEmailForLog('a@b.com')).toBe('a*@b.com');
   });
   it('no se rompe con una entrada sin @', () => {
