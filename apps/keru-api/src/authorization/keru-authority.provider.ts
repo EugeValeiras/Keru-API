@@ -36,6 +36,21 @@ export class KeruAuthorityProvider implements AuthorityProvider {
     );
   }
 
+  /**
+   * Relación de servicio VIVA: asignación en estado `active` con el paciente, SIN chequear la
+   * ventana (KER-57, §3.7). Alcance de la LECTURA clínica del cuidador — la lectura acompaña la
+   * VIDA del servicio aceptado (inicio futuro / en curso); cuando la asignación se cierra o vence
+   * pasa a `historical` (barrido NFR-14) y deja de contar. `listActiveAssignmentsForCaregiver`
+   * devuelve solo las `active`, así que basta filtrar por paciente.
+   */
+  async hasLiveServiceRelationship(query: AuthorityQuery): Promise<boolean> {
+    if (query.accountId === '') return false;
+    const caregiver = await this.caregivers.findByAccountId(query.accountId);
+    if (!caregiver) return false;
+    const active = await this.hiring.listActiveAssignmentsForCaregiver(caregiver.id);
+    return active.some((a) => a.patientId === query.patientId);
+  }
+
   /** Alguna asignación con el paciente, sin importar ventana ni estado (llegada tardía vs ajeno, NFR-30). */
   async hasAnyAssignment(query: AuthorityQuery): Promise<boolean> {
     if (query.accountId === '') return false;

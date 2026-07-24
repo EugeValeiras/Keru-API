@@ -13,8 +13,19 @@ export interface AuthorityProvider {
   /** Roles que la cuenta tiene en su vínculo con el paciente, vigentes en `at`. */
   getLinkRoles(query: AuthorityQuery): Promise<LinkRole[]>;
 
-  /** ¿La cuenta (cuidador) tiene asignación vigente al paciente en `at`? */
+  /**
+   * ¿La cuenta (cuidador) tiene asignación cuya VENTANA cubre `at` (`periodStart ≤ at ≤ periodEnd`)?
+   * Es el alcance de la ESCRITURA clínica (NFR-30: autoridad al tiempo de la medición).
+   */
   hasActiveAssignment(query: AuthorityQuery): Promise<boolean>;
+
+  /**
+   * ¿La cuenta (cuidador) tiene una relación de servicio VIVA con el paciente — una asignación en
+   * estado `active` (aceptada y aún no cerrada a `historical`), **independiente de la ventana**?
+   * Es el alcance de la LECTURA clínica del cuidador (KER-57, constitution §3.7): mirar no es medir,
+   * así que la lectura acompaña la VIDA del servicio (inicio futuro / en curso), no solo la ventana.
+   */
+  hasLiveServiceRelationship(query: AuthorityQuery): Promise<boolean>;
 
   /**
    * ¿La cuenta (cuidador) tiene ALGUNA asignación con el paciente, sin importar ventana ni estado?

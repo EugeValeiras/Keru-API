@@ -10,6 +10,7 @@ function makeEngine(over: Partial<AuthorityProvider> = {}): PermissionEngine {
   const provider: AuthorityProvider = {
     getLinkRoles: jest.fn().mockResolvedValue([]),
     hasActiveAssignment: jest.fn().mockResolvedValue(false),
+    hasLiveServiceRelationship: jest.fn().mockResolvedValue(false),
     hasAnyAssignment: jest.fn().mockResolvedValue(false),
     isAdmin: jest.fn().mockResolvedValue(false),
     ...over,
