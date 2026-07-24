@@ -18,7 +18,8 @@
  * renderiza en todos (incluidos Gmail/Outlook). Se prefiere PNG por compat de email (algunos
  * clientes no rasterizan SVG remoto). La URL es configurable por env EMAIL_LOGO_URL (ver
  * email.util.ts) con default DEFAULT_LOGO_URL; el asset canónico es el mismo wordmark que
- * docs/brand/assets/keru-logo.svg, publicado como PNG en el CDN de marca.
+ * docs/brand/assets/keru-logo.svg, publicado como PNG en el CDN de marca POR AMBIENTE
+ * (KER-70): cdn.dev.keru.ar en dev, cdn.keru.ar en prod (el default del código es el de prod).
  */
 
 // Paleta v2 (brand book §3). Solo los tokens que usa el email; hex explícitos porque
@@ -48,10 +49,12 @@ const FONT_SANS = "'Helvetica Neue', Arial, sans-serif";
 /**
  * URL pública HTTPS por defecto del wordmark para emails (KER-64). PNG (compat de email) con el
  * mismo trazo que docs/brand/assets/keru-logo.svg: la "k" como isotipo + el punto terracota (la
- * persona cuidada). Se sirve desde el CDN de marca (convención cdn.keru.app, la misma de las fotos
- * de paciente). Configurable por EMAIL_LOGO_URL; debe ser una URL estable, no versionada/caducable.
+ * persona cuidada). Se sirve desde el CDN de marca POR AMBIENTE (KER-70): cdn.dev.keru.ar en dev y
+ * cdn.keru.ar en prod — la MISMA convención de host que las fotos de paciente (S3_PUBLIC_URL). Este
+ * default es el de PROD; en dev se setea EMAIL_LOGO_URL=https://cdn.dev.keru.ar/email/keru-logo.png.
+ * Configurable por EMAIL_LOGO_URL; debe ser una URL estable, no versionada/caducable.
  */
-export const DEFAULT_LOGO_URL = 'https://cdn.keru.app/email/keru-logo.png';
+export const DEFAULT_LOGO_URL = 'https://cdn.keru.ar/email/keru-logo.png';
 
 /** Contenido de un email transaccional; la fuente única para la parte HTML y la de texto. */
 export interface BrandedEmailContent {

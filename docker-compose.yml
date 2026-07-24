@@ -84,8 +84,13 @@ services:
       AWS_ENDPOINT_URL: http://floci:4566
       SES_FROM: no-reply@keru.app
       S3_BUCKET: keru-media
-      # photoUrl relativa al origen de la webapp: nginx proxya /media -> floci/keru-media.
+      # CDN de fotos POR AMBIENTE (KER-70): deploy dev -> https://cdn.dev.keru.ar/media,
+      # prod -> https://cdn.keru.ar/media (mismo host que EMAIL_LOGO_URL). En este stack LOCAL se
+      # deja relativa: nginx proxya /media -> floci/keru-media (subidas emuladas, sin depender del CDN).
       S3_PUBLIC_URL: /media
+      # Logo de email (KER-70): asset estático servido por el CDN de marca por ambiente. Este stack
+      # es dev -> cdn.dev.keru.ar (el logo no depende de floci; se sirve del CDN público igual).
+      EMAIL_LOGO_URL: https://cdn.dev.keru.ar/email/keru-logo.png
       # Origen de la webapp servida por nginx (links de invitación en emails).
       APP_BASE_URL: http://localhost:8080
       # Web Push VAPID (UC-18): SIN default con claves (incidente GitGuardian 2026-07-22).

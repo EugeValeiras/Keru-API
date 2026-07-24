@@ -45,6 +45,11 @@ export class FileStorageUtility {
   constructor(private readonly config: ConfigService) {
     const endpoint = this.config.get<string>('AWS_ENDPOINT_URL');
     this.bucket = this.config.get<string>('S3_BUCKET', 'keru-media');
+    // KER-70: la URL pública de las fotos se resuelve POR AMBIENTE vía S3_PUBLIC_URL, con el MISMO
+    // host de CDN que el logo de email (EMAIL_LOGO_URL): cdn.dev.keru.ar en dev y cdn.keru.ar en
+    // prod. En local/CI se deja el default (relativo /media o el endpoint de floci) para que las
+    // subidas se recuperen del emulador sin depender del CDN. El default de abajo es solo el de
+    // arranque sin config; los deploys setean S3_PUBLIC_URL explícito.
     this.publicBaseUrl = this.config.get<string>(
       'S3_PUBLIC_URL',
       endpoint ? `${endpoint}/${this.bucket}` : `https://${this.bucket}.s3.amazonaws.com`,
