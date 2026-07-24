@@ -14,6 +14,12 @@ export class PatientResponseDto {
   age!: number;
 
   @ApiPropertyOptional({
+    example: 'https://cdn.keru.app/p/rosa.jpg',
+    description: 'Foto del paciente si tiene una cargada; ausente si no. El cliente cae al avatar de iniciales.',
+  })
+  photoUrl?: string;
+
+  @ApiPropertyOptional({
     format: 'uuid',
     description:
       'Si se detectó un posible duplicado del mismo humano (residuo #21), su id; el cliente puede ofrecer vincular/mergear.',
