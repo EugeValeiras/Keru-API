@@ -86,12 +86,20 @@ export class RatesDto {
 
 /** UC-02 · Registrar cuidador. La cuenta (rol caregiver) crea su perfil profesional. */
 export class RegisterCaregiverDto extends WithOperationIdentity {
-  @ApiProperty({ example: 'Laura Gómez' })
+  /**
+   * @deprecated ADR-0003 · La identidad (nombre) vive en la `Account`, no en el perfil. El alta ya
+   * no pide el nombre (usa el de la cuenta); si un cliente lo envía, se ignora.
+   */
+  @ApiPropertyOptional({ deprecated: true, description: 'Ignorado (ADR-0003): el nombre lo aporta la cuenta.' })
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(200)
-  displayName!: string;
+  displayName?: string;
 
+  /**
+   * Foto de perfil (opcional). ADR-0003: la foto es identidad de la `Account` — si se envía al
+   * registrar, se guarda en la cuenta (fuente única), no en el perfil.
+   */
   @ApiPropertyOptional({ example: 'http://localhost:4566/keru-media/images/abc.jpg' })
   @IsOptional()
   @IsString()

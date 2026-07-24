@@ -468,11 +468,15 @@ export class MembershipManager {
       throw new BadRequestException('La cuenta ya tiene un perfil de cuidador');
     }
 
+    // ADR-0003: la identidad (nombre/foto) vive en la cuenta. El nombre lo aporta la cuenta
+    // (dto.displayName se ignora); una foto enviada al registrarse se guarda en la cuenta.
+    if (dto.photoUrl !== undefined) {
+      await this.accountAccess.updateAccount(accountId, { photoUrl: dto.photoUrl });
+    }
+
     const caregiver = await this.caregiverAccess.createProfile(
       {
         accountId,
-        displayName: dto.displayName,
-        photoUrl: dto.photoUrl ?? null,
         specialties: dto.specialties,
         certifications: dto.certifications.map((c) => ({ ...c, verified: false })),
         availability: dto.availability,
@@ -508,9 +512,12 @@ export class MembershipManager {
       throw new BadRequestException('Solo un perfil rechazado puede re-enviarse');
     }
 
+    // ADR-0003: identidad por la cuenta; una foto nueva enviada en la re-postulación se guarda ahí.
+    if (dto.photoUrl !== undefined) {
+      await this.accountAccess.updateAccount(accountId, { photoUrl: dto.photoUrl });
+    }
+
     await this.caregiverAccess.resubmitProfile(existing.id, {
-      displayName: dto.displayName,
-      photoUrl: dto.photoUrl ?? null,
       specialties: dto.specialties,
       certifications: dto.certifications.map((c) => ({ ...c, verified: false })),
       availability: dto.availability,
@@ -544,10 +551,10 @@ export class MembershipManager {
       );
     }
 
-    // Set parcial: solo las claves presentes en el patch (nunca credenciales ni status).
+    // Set parcial: solo las claves presentes en el patch (nunca credenciales, identidad ni status).
+    // La foto NO está acá (ADR-0003): es identidad de la cuenta, se edita por PATCH /accounts/me.
     const patch: UpdateApprovedProfileInput = Object.fromEntries(
       Object.entries({
-        photoUrl: dto.photoUrl,
         availability: dto.availability,
         zone: dto.zone,
         modalities: dto.modalities,

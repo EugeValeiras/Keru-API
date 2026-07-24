@@ -15,17 +15,12 @@ import { AvailabilityDto, MODALITIES, RatesDto } from './register-caregiver.dto'
 
 /**
  * UC-02 A3 · Edición del perfil aprobado. Set parcial: solo los campos que no requieren
- * re-verificación (foto, disponibilidad, tarifas, zona, modalidades). Nombre, especialidades y
- * certificaciones no se editan por esta vía (constitution §7). Un cambio de tarifa agrega una
- * versión efectivo-fechada (NFR-03/23), por eso el verbo lleva operationId.
+ * re-verificación (disponibilidad, tarifas, zona, modalidades). Nombre, especialidades y
+ * certificaciones no se editan por esta vía (constitution §7). La FOTO tampoco (ADR-0003): es
+ * identidad de la cuenta y se edita por `PATCH /accounts/me` (UC-23). Un cambio de tarifa agrega
+ * una versión efectivo-fechada (NFR-03/23), por eso el verbo lleva operationId.
  */
 export class UpdateCaregiverProfileDto extends WithOperationIdentity {
-  @ApiPropertyOptional({ example: 'http://localhost:4566/keru-media/images/abc.jpg' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  photoUrl?: string;
-
   @ApiPropertyOptional({ type: [AvailabilityDto] })
   @IsOptional()
   @IsArray()

@@ -39,16 +39,18 @@ export class Caregiver {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  /** Cuenta (rol caregiver) dueña del perfil. Un perfil por cuenta. */
+  /** Cuenta (rol caregiver) dueña del perfil. Un perfil por cuenta. Fuente de la identidad. */
   @Column({ type: 'varchar', length: 128, unique: true })
   @Index()
   accountId!: string;
 
-  @Column({ type: 'varchar', length: 200 })
+  /**
+   * Identidad (nombre + avatar) DERIVADA de la `Account` — NO son columnas (ADR-0003).
+   * `CaregiverAccess` las resuelve por `accountId` (join intra-Membership) tras cada lectura,
+   * para que el marketplace/ficha muestren la misma identidad que el header. Fuente única:
+   * `Account`; único punto de escritura: `PATCH /accounts/me` (UC-23).
+   */
   displayName!: string;
-
-  /** Foto de perfil (UC-02/06). URL pública (S3 — floci en dev); opcional. */
-  @Column({ type: 'varchar', length: 500, nullable: true })
   photoUrl!: string | null;
 
   @Column({ type: 'jsonb', default: () => "'[]'" })

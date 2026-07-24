@@ -3543,10 +3543,12 @@
           },
           "displayName": {
             "type": "string",
-            "example": "Laura Gómez"
+            "deprecated": true,
+            "description": "Ignorado (ADR-0003): el nombre lo aporta la cuenta (identidad fuente única en Account)."
           },
           "photoUrl": {
             "type": "string",
+            "description": "Foto opcional; si se envía al registrar se guarda en la cuenta (ADR-0003).",
             "example": "http://localhost:4566/keru-media/images/abc.jpg"
           },
           "specialties": {
@@ -3605,7 +3607,6 @@
         },
         "required": [
           "operationId",
-          "displayName",
           "specialties",
           "certifications",
           "availability",
@@ -3699,10 +3700,6 @@
             "type": "string",
             "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
             "example": "op-8f3a2c1e"
-          },
-          "photoUrl": {
-            "type": "string",
-            "example": "http://localhost:4566/keru-media/images/abc.jpg"
           },
           "availability": {
             "type": "array",

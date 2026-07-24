@@ -74,28 +74,29 @@ describe('UC-02 A3 · edición del perfil aprobado sin re-aprobación', () => {
     },
   );
 
-  it('Dado un perfil aprobado, cuando edita zona/disponibilidad/foto, entonces el patch es parcial, no toca el status y el audit registra los campos', async () => {
+  it('Dado un perfil aprobado, cuando edita zona/disponibilidad, entonces el patch es parcial (sin foto: es identidad de la cuenta, ADR-0003), no toca el status y el audit registra los campos', async () => {
     const { manager, deps } = makeManager();
     const availability = [{ dayOfWeek: 3, from: '10:00', to: '18:00' }];
 
     await manager.updateApprovedCaregiver(
-      editDto({ zone: 'Belgrano, CABA', availability, photoUrl: 'http://x/foto.jpg' }),
+      editDto({ zone: 'Belgrano, CABA', availability }),
       'acc-cg',
     );
 
     expect(deps.caregiverAccess.updateApprovedProfile).toHaveBeenCalledWith(
       'cg-1',
-      { zone: 'Belgrano, CABA', availability, photoUrl: 'http://x/foto.jpg' },
+      { zone: 'Belgrano, CABA', availability },
       expect.anything(),
     );
     const patch = deps.caregiverAccess.updateApprovedProfile.mock.calls[0][1];
     expect(patch).not.toHaveProperty('status'); // sigue aprobado: sin re-aprobación
+    expect(patch).not.toHaveProperty('photoUrl'); // ADR-0003: la foto es de la cuenta, no del perfil
     expect(deps.caregiverAccess.createRateVersion).not.toHaveBeenCalled(); // la tarifa no cambió
     expect(deps.audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'membership.caregiver.profile-updated',
         actor: 'acc-cg',
-        metadata: { fields: ['photoUrl', 'availability', 'zone'] },
+        metadata: { fields: ['availability', 'zone'] },
       }),
     );
   });
