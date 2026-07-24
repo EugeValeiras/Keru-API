@@ -46,6 +46,9 @@ describe('E2E · Verificación de email del self-signup (KER-49, UC-04 A5)', () 
   const confirmVerification = (token: string) =>
     http(app).post('/api/v1/auth/email-verification/confirm').send({ token });
 
+  const peekVerification = (token: string) =>
+    http(app).post('/api/v1/auth/email-verification/peek').send({ token });
+
   describe('signup · alta no-verificada (A5.1)', () => {
     it('el signup responde emailVerified=false, deja la cuenta sin verificar y emite el token auditado', async () => {
       const email = `nuevo-${Date.now()}@e2e.keru.test`;
@@ -118,6 +121,49 @@ describe('E2E · Verificación de email del self-signup (KER-49, UC-04 A5)', () 
 
     it('token inexistente → 410 (misma respuesta, sin distinguir)', async () => {
       expect((await confirmVerification('token-que-no-existe-000')).status).toBe(410);
+    });
+  });
+
+  describe('peek · email destino sin consumir el token (A5.2b, KER-63)', () => {
+    it('token válido → 200 {email destino}, SIN consumir el token (sigue pendiente y confirma después)', async () => {
+      const account = await signup(app, 'family', 'Verif Peek', { verifyEmail: false });
+      const token = await latestToken(account.accountId);
+
+      const res = await peekVerification(token!.token);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ email: account.email });
+
+      // Peek no tiene efecto: el token sigue pendiente y la cuenta sin verificar.
+      expect((await latestToken(account.accountId))?.status).toBe('pending');
+      expect(await isVerified(account.accountId)).toBe(false);
+
+      // Y el confirm posterior con el mismo token sigue funcionando (single-use recién acá).
+      expect((await confirmVerification(token!.token)).status).toBe(200);
+      expect(await isVerified(account.accountId)).toBe(true);
+    });
+
+    it('token ya usado → 410 (no revela el email destino)', async () => {
+      const account = await signup(app, 'family', 'Verif Peek Usado', { verifyEmail: false });
+      const token = await latestToken(account.accountId);
+      expect((await confirmVerification(token!.token)).status).toBe(200);
+
+      const res = await peekVerification(token!.token);
+      expect(res.status).toBe(410);
+      expect(res.body.email).toBeUndefined();
+    });
+
+    it('token expirado → 410', async () => {
+      const account = await signup(app, 'family', 'Verif Peek Vencido', { verifyEmail: false });
+      const token = await latestToken(account.accountId);
+      await db.query(`UPDATE email_verification_token SET "expiresAt" = now() - interval '1 hour' WHERE token = $1`, [
+        token!.token,
+      ]);
+
+      expect((await peekVerification(token!.token)).status).toBe(410);
+    });
+
+    it('token inexistente → 410 (misma respuesta, sin distinguir)', async () => {
+      expect((await peekVerification('token-que-no-existe-000')).status).toBe(410);
     });
   });
 

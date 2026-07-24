@@ -45,6 +45,7 @@ import { UpdateAccountDto } from './dto/update-account.dto';
 import {
   AuthResponseDto,
   EmailVerificationConfirmDto,
+  EmailVerificationPeekResponseDto,
   LoginDto,
   PasswordResetConfirmDto,
   SignupDto,
@@ -383,6 +384,25 @@ export class MembershipManager implements OnApplicationBootstrap {
    * de un solo uso, no un operationId aparte (ADR-0002). Devuelve una sesión nueva (auto-login) ya con
    * `emailVerified=true`, para que el banner del cliente desaparezca sin re-loguear.
    */
+  /**
+   * UC-04 A5.2b (KER-63) · Peek del token de verificación: devuelve el email destino SIN consumir el
+   * token, para que el cliente compare con la sesión activa antes de confirmar (y así no cambie de
+   * cuenta en silencio ni gaste mal el token single-use). Misma validación y 410 que `confirm`, pero
+   * sin efecto: no marca verificado, no consume, no audita.
+   */
+  async peekEmailVerification(dto: EmailVerificationConfirmDto): Promise<EmailVerificationPeekResponseDto> {
+    const verification = await this.accountAccess.findEmailVerificationByToken(dto.token);
+    // Anti-enumeración: no distinguimos inexistente / usado / expirado (todo 410).
+    if (!verification || verification.status !== 'pending' || verification.expiresAt.getTime() <= Date.now()) {
+      throw new GoneException('El enlace de verificación es inválido o expiró');
+    }
+
+    const account = await this.accountAccess.findAccountById(verification.accountId);
+    if (!account) throw new GoneException('El enlace de verificación es inválido o expiró');
+
+    return { email: account.email };
+  }
+
   async confirmEmailVerification(dto: EmailVerificationConfirmDto): Promise<AuthResponseDto> {
     const verification = await this.accountAccess.findEmailVerificationByToken(dto.token);
     // Anti-enumeración: no distinguimos inexistente / usado / expirado (todo 410).

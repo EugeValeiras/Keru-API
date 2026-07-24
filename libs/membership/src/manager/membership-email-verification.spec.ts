@@ -181,6 +181,43 @@ describe('UC-04 A5 · confirm (token de un solo uso)', () => {
   });
 });
 
+describe('UC-04 A5.2b · peek (email destino sin consumir el token, KER-63)', () => {
+  it('Dado un token válido, cuando hace peek, entonces devuelve el email destino SIN consumir ni marcar verificado', async () => {
+    const { manager, deps } = makeManager();
+
+    const res = await manager.peekEmailVerification({ token: 'tok-abc' });
+
+    expect(res).toEqual({ email: 'user@test.com' });
+    // Sin efecto: no consume el token, no marca verificado, no audita.
+    expect(deps.accountAccess.markEmailVerificationUsed).not.toHaveBeenCalled();
+    expect(deps.accountAccess.markEmailVerified).not.toHaveBeenCalled();
+    expect(deps.audit.record).not.toHaveBeenCalled();
+  });
+
+  it('Dado un token inexistente, cuando hace peek, entonces 410 (sin revelar email)', async () => {
+    const { manager, deps } = makeManager();
+    deps.accountAccess.findEmailVerificationByToken.mockResolvedValue(null);
+
+    await expect(manager.peekEmailVerification({ token: 'x' })).rejects.toBeInstanceOf(GoneException);
+  });
+
+  it('Dado un token ya usado, cuando hace peek, entonces 410', async () => {
+    const { manager, deps } = makeManager();
+    deps.accountAccess.findEmailVerificationByToken.mockResolvedValue(pendingToken({ status: 'used' }));
+
+    await expect(manager.peekEmailVerification({ token: 'tok-abc' })).rejects.toBeInstanceOf(GoneException);
+  });
+
+  it('Dado un token expirado, cuando hace peek, entonces 410', async () => {
+    const { manager, deps } = makeManager();
+    deps.accountAccess.findEmailVerificationByToken.mockResolvedValue(
+      pendingToken({ expiresAt: new Date(Date.now() - 60_000) }),
+    );
+
+    await expect(manager.peekEmailVerification({ token: 'tok-abc' })).rejects.toBeInstanceOf(GoneException);
+  });
+});
+
 describe('UC-04 A5 · gate: emitir invitación exige email verificado', () => {
   it('Dada una cuenta NO verificada, cuando intenta invitar, entonces 403 EMAIL_NOT_VERIFIED y no crea invitación', async () => {
     const { manager, deps } = makeManager();

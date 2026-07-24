@@ -121,6 +121,19 @@ export class EmailVerificationConfirmDto {
   token!: string;
 }
 
+/**
+ * UC-04 A5.2b (KER-63) · Peek del token de verificación: mismo cuerpo que confirm (token), pero la
+ * operación es de solo lectura (no consume el token). Reusar el mismo shape mantiene el contrato mínimo.
+ */
+export class EmailVerificationPeekResponseDto {
+  @ApiProperty({
+    example: 'familiar@test.com',
+    description:
+      'UC-04 A5.2b · Email destino del token, para que el cliente compare con la sesión activa ANTES de consumir el token (sin cambiar de cuenta en silencio). Solo se devuelve para un token válido/pendiente; inválido/expirado/reusado → 410.',
+  })
+  email!: string;
+}
+
 export class StepUpResponseDto {
   @ApiProperty({ description: 'Token corto con claim step_up: acompaña la operación sensible en x-step-up-token' })
   stepUpToken!: string;
