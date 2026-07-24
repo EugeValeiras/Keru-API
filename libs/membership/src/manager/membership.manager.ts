@@ -55,6 +55,19 @@ const INVITATION_TTL_MINUTES = 30; // OQ-2
 const PASSWORD_RESET_TTL_MINUTES = 30; // UC-04 A4: corta vida, patrón NFR-19
 const EMAIL_VERIFICATION_TTL_MINUTES = 30; // UC-04 A5: corta vida, patrón NFR-19
 
+/**
+ * KER-66 · Enmascara un email para los logs de entrega: conserva el dominio (útil para diagnosticar
+ * SES sandbox / identidad remitente / floci) y la 1ª letra del local, oculta el resto. Así el fallo
+ * de envío es accionable sin exponer PII de más (constitution §5, "sin PII en logs de más").
+ */
+export function maskEmailForLog(email: string): string {
+  const at = email.indexOf('@');
+  if (at <= 0) return '***';
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  return `${local[0]}${'*'.repeat(Math.max(1, local.length - 1))}@${domain}`;
+}
+
 export interface InvitationPreview {
   patientId: string;
   patientName: string;
@@ -111,6 +124,28 @@ export class MembershipManager implements OnApplicationBootstrap {
     private readonly config: ConfigService,
     private readonly permission: PermissionEngine,
   ) {}
+
+  /**
+   * KER-66 · Envío de email transaccional "mejor esfuerzo" con el fallo OBSERVABLE.
+   * Los emails de invitación (UC-03) y de reset/verificación (UC-04) son best-effort: un fallo de
+   * SES/floci/render NO invalida ni bloquea el flujo (postcondición de esos UC; la §3.1 trata el
+   * email como Utility transversal). Pero KER-66: el fallo dejó de ser INVISIBLE — antes se tragaba
+   * en un `logger.warn` sin stack ni contexto, así que era imposible saber si no llegó por floci,
+   * por identidad SES no verificada o por un throw del render. Ahora se loguea a ERROR con detalle
+   * accionable (tipo de email, destino ENMASCARADO, name+message del error y stack).
+   * Decisión KER-66 (documentada en UC-03/constitution §3.1): se mantiene el envío directo, NO se
+   * rutea por el outbox de KER-33 — el UC lo define best-effort y desacoplarlo a un worker con
+   * retry/DLQ excede el fix puntual; queda como follow-up (KER-33). Sin PII de más: destino masked.
+   */
+  private sendTransactionalEmail(kind: string, to: string, send: Promise<void>): void {
+    void send.catch((err) => {
+      const e = err instanceof Error ? err : new Error(String(err));
+      this.logger.error(
+        `No se pudo enviar el email de ${kind} a ${maskEmailForLog(to)}: ${e.name}: ${e.message}`,
+        e.stack,
+      );
+    });
+  }
 
   // --- UC-04 · Autenticación ---
 
@@ -243,11 +278,11 @@ export class MembershipManager implements OnApplicationBootstrap {
       metadata: { resetId: reset.id, expiresAt },
     });
 
-    void this.email
-      .sendPasswordResetEmail({ to: account.email, token: reset.token, expiresAt: reset.expiresAt })
-      .catch((err) =>
-        this.logger.warn(`No se pudo enviar el email de recuperación: ${(err as Error).message}`),
-      );
+    this.sendTransactionalEmail(
+      'recuperación de contraseña',
+      account.email,
+      this.email.sendPasswordResetEmail({ to: account.email, token: reset.token, expiresAt: reset.expiresAt }),
+    );
   }
 
   /**
@@ -322,11 +357,11 @@ export class MembershipManager implements OnApplicationBootstrap {
       metadata: { verificationId: verification.id, expiresAt },
     });
 
-    void this.email
-      .sendEmailVerificationEmail({ to: account.email, token: verification.token, expiresAt: verification.expiresAt })
-      .catch((err) =>
-        this.logger.warn(`No se pudo enviar el email de verificación: ${(err as Error).message}`),
-      );
+    this.sendTransactionalEmail(
+      'verificación de email',
+      account.email,
+      this.email.sendEmailVerificationEmail({ to: account.email, token: verification.token, expiresAt: verification.expiresAt }),
+    );
   }
 
   /**
@@ -1115,18 +1150,19 @@ export class MembershipManager implements OnApplicationBootstrap {
       metadata: { invitedEmail, role, expiresAt },
     });
 
-    // UC-03: el sistema envía el link por email al invitado. Mejor esfuerzo:
-    // un fallo de SES no invalida la invitación (la UI ofrece copiar/compartir).
-    void this.email
-      .sendInvitationEmail({
+    // UC-03: el sistema envía el link por email al invitado. Mejor esfuerzo: un fallo de SES no
+    // invalida la invitación (la UI ofrece copiar/compartir). KER-66: el fallo se loguea a ERROR
+    // con detalle accionable (antes se tragaba en un warn silencioso → causa raíz indiagnosticable).
+    this.sendTransactionalEmail(
+      'invitación',
+      invitation.invitedEmail,
+      this.email.sendInvitationEmail({
         to: invitation.invitedEmail,
         patientName: patient.fullName,
         token: invitation.token,
         expiresAt: invitation.expiresAt,
-      })
-      .catch((err) =>
-        this.logger.warn(`No se pudo enviar el email de invitación: ${(err as Error).message}`),
-      );
+      }),
+    );
 
     return invitation;
   }
