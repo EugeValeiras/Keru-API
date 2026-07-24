@@ -3788,6 +3788,11 @@
             "example": 78,
             "description": "Edad derivada de la fecha de nacimiento."
           },
+          "photoUrl": {
+            "type": "string",
+            "example": "https://cdn.keru.app/p/rosa.jpg",
+            "description": "Foto del paciente si tiene una cargada; ausente si no. El cliente cae al avatar de iniciales."
+          },
           "duplicateCandidateId": {
             "type": "string",
             "format": "uuid",

@@ -49,6 +49,7 @@ export class MembershipController {
       id: result.patient.id,
       fullName: result.patient.fullName,
       age: result.age,
+      photoUrl: result.patient.photoUrl ?? undefined,
       duplicateCandidateId: result.duplicateCandidateId,
     };
   }
@@ -59,7 +60,12 @@ export class MembershipController {
   @ApiOkResponse({ type: PatientResponseDto, isArray: true })
   async myPatients(@CurrentAccount() account: AuthPrincipal): Promise<PatientResponseDto[]> {
     const patients = await this.membership.listMyPatients(account.accountId);
-    return patients.map((p) => ({ id: p.patient.id, fullName: p.patient.fullName, age: p.age }));
+    return patients.map((p) => ({
+      id: p.patient.id,
+      fullName: p.patient.fullName,
+      age: p.age,
+      photoUrl: p.patient.photoUrl ?? undefined,
+    }));
   }
 
   /** UC-22 · Ver la ficha del paciente (cualquier rol de vínculo). */
