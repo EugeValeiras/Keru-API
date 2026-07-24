@@ -558,9 +558,24 @@ export class HiringManager {
   }
 
   // --- NFR-14 · Barrido de vencidos (llamado por el scheduler o el endpoint de ops) ---
-  /** Finaliza asignaciones vencidas y expira solicitudes pendientes vencidas. Idempotente. */
-  async sweepLifecycle(now = new Date()): Promise<{ assignmentsClosed: number; requestsExpired: number }> {
+  /**
+   * Reloj del ciclo de vida del servicio (UC-05 A1 / UC-09 A5, NFR-14, KER-58). En un solo barrido
+   * idempotente y multi-instancia-safe (cada claim es un `UPDATE...RETURNING`):
+   *  1. **Vencimiento:** historifica las asignaciones vencidas y **cierra** sus contrataciones a
+   *     `completed` (razón terminal `completed`) — mismo umbral (`endDate`/`periodEnd < now`), así el
+   *     servicio sale de "activos", entra a "Finalizados" y habilita la calificación (NFR-20) solo.
+   *  2. **Entrada en ventana:** las contrataciones aceptadas que alcanzaron su `startDate` (y no
+   *     vencieron) pasan a `in-progress` (badge "En curso" real en el webapp).
+   *  3. **Pendientes vencidas:** las que nunca se aceptaron pasan a `expired`.
+   * La precondición SQL de estado de cada claim **no pisa** un cierre por cancelación/no-show (A3/A4):
+   * ese request ya es `completed` con su razón terminal y su asignación ya es `historical`.
+   */
+  async sweepLifecycle(
+    now = new Date(),
+  ): Promise<{ assignmentsClosed: number; requestsExpired: number; requestsCompleted: number; requestsStarted: number }> {
     const assignments = await this.hiringAccess.claimDueAssignments(now);
+    const completed = await this.hiringAccess.claimEndedRequests(now);
+    const started = await this.hiringAccess.claimStartedRequests(now);
     const requests = await this.hiringAccess.claimExpiredPendingRequests(now);
 
     for (const a of assignments) {
@@ -570,6 +585,21 @@ export class HiringManager {
         target: { type: 'assignment', id: a.id },
       });
     }
+    for (const r of completed) {
+      await this.audit.record({
+        action: 'hiring.request.auto-completed',
+        actor: 'system',
+        target: { type: 'hiring_request', id: r.id },
+        metadata: { terminalReason: 'completed' },
+      });
+    }
+    for (const r of started) {
+      await this.audit.record({
+        action: 'hiring.request.started',
+        actor: 'system',
+        target: { type: 'hiring_request', id: r.id },
+      });
+    }
     for (const r of requests) {
       await this.audit.record({
         action: 'hiring.request.auto-expired',
@@ -577,7 +607,12 @@ export class HiringManager {
         target: { type: 'hiring_request', id: r.id },
       });
     }
-    return { assignmentsClosed: assignments.length, requestsExpired: requests.length };
+    return {
+      assignmentsClosed: assignments.length,
+      requestsExpired: requests.length,
+      requestsCompleted: completed.length,
+      requestsStarted: started.length,
+    };
   }
 
   /** Métricas de contratación para el dashboard del back-office. */
