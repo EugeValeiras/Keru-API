@@ -5,6 +5,7 @@ import {
   createApprovedCaregiver,
   createE2EApp,
   http,
+  signup,
   signupAdmin,
 } from './e2e-utils';
 
@@ -29,11 +30,16 @@ describe('E2E · KER-54 · Identidad unificada cuenta↔perfil de cuidador (ADR-
 
   it('Dado un cuidador aprobado, cuando edita nombre y foto en /accounts/me, entonces el marketplace muestra la MISMA identidad', async () => {
     const { account, caregiverId } = await createApprovedCaregiver(app, admin);
+    // El marketplace es para quien busca cuidado (@Roles family/patient): la familia ve las cards.
+    const family = await signup(app, 'family', 'Familia Marketplace');
 
     // Estado inicial: la card del marketplace deriva el nombre de la cuenta (signup 'Laura Gómez').
-    const before = await http(app).get(`/api/v1/marketplace/caregivers/${caregiverId}`).set(bearer(account.token));
+    const before = await http(app)
+      .get(`/api/v1/marketplace/caregivers/${caregiverId}`)
+      .set(bearer(family.token));
     expect(before.status).toBe(200);
-    expect(before.body).toMatchObject({ displayName: 'Laura Gómez', photoUrl: undefined });
+    expect(before.body).toMatchObject({ displayName: 'Laura Gómez' });
+    expect(before.body.photoUrl ?? null).toBeNull(); // sin foto todavía (cae al fallback)
 
     // El cuidador edita su identidad por su cuenta (UC-23): único punto de escritura (ADR-0003).
     const photoUrl = 'http://localhost:4566/keru-media/images/laura-nueva.jpg';
@@ -45,11 +51,13 @@ describe('E2E · KER-54 · Identidad unificada cuenta↔perfil de cuidador (ADR-
     expect(patched.body).toMatchObject({ displayName: 'Laura Gómez Actualizada', photoUrl });
 
     // Coherencia: la ficha del marketplace refleja la nueva identidad SIN tocar el perfil de cuidador.
-    const afterDetail = await http(app).get(`/api/v1/marketplace/caregivers/${caregiverId}`).set(bearer(account.token));
+    const afterDetail = await http(app)
+      .get(`/api/v1/marketplace/caregivers/${caregiverId}`)
+      .set(bearer(family.token));
     expect(afterDetail.body).toMatchObject({ displayName: 'Laura Gómez Actualizada', photoUrl });
 
     // Y la lista del marketplace (cards) muestra la misma identidad unificada.
-    const list = await http(app).get('/api/v1/marketplace/caregivers').set(bearer(account.token));
+    const list = await http(app).get('/api/v1/marketplace/caregivers').set(bearer(family.token));
     const card = list.body.find((c: { id: string }) => c.id === caregiverId);
     expect(card).toMatchObject({ displayName: 'Laura Gómez Actualizada', photoUrl });
   });
