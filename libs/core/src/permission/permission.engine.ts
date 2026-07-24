@@ -17,11 +17,15 @@ export type ClinicalWriteAuthority = 'authorized' | 'quarantine' | 'forbidden';
 export class PermissionEngine {
   constructor(@Inject(AUTHORITY_PROVIDER) private readonly authority: AuthorityProvider) {}
 
-  /** ¿La cuenta puede LEER datos del paciente? (vínculo o cuidador con asignación). */
+  /**
+   * ¿La cuenta puede LEER datos del paciente? Familiar vinculado, o cuidador con una relación de
+   * servicio VIVA (asignación aceptada sin cerrar), independiente de la ventana (KER-57, §3.7):
+   * la lectura acompaña la VIDA del servicio, no el instante de la medición (eso es la ESCRITURA).
+   */
   async canReadPatient(query: AuthorityQuery): Promise<boolean> {
     const roles = await this.authority.getLinkRoles(query);
     if (roles.length > 0) return true;
-    return this.authority.hasActiveAssignment(query);
+    return this.authority.hasLiveServiceRelationship(query);
   }
 
   /** ¿La cuenta puede REGISTRAR datos clínicos? Familiar vinculado o cuidador con asignación vigente. */
