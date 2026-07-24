@@ -253,6 +253,26 @@ export class AccountAccess {
     return repo.save(repo.create({ patientId, accountId, role }));
   }
 
+  /**
+   * UC-22 A3 · Re-asigna el rol de un vínculo ya existente del círculo. Naturalmente idempotente
+   * (repetir el mismo cambio deja el mismo rol), por eso no requiere operationId (NFR-34, ADR-0002).
+   * Devuelve el vínculo actualizado o null si no existe (el Manager lo mapea a 404).
+   */
+  async updateLinkRole(
+    patientId: string,
+    accountId: string,
+    role: LinkRole,
+    manager?: EntityManager,
+  ): Promise<PatientLink | null> {
+    const repo = manager ? manager.getRepository(PatientLink) : this.links;
+
+    const link = await repo.findOne({ where: { patientId, accountId } });
+    if (!link) return null;
+
+    link.role = role;
+    return repo.save(link);
+  }
+
   findPatientById(id: string): Promise<Patient | null> {
     return this.patients.findOne({ where: { id } });
   }

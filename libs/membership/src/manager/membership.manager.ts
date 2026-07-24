@@ -19,6 +19,7 @@ import {
   EmailUtility,
   FileStorageUtility,
   LinkRole,
+  PermissionEngine,
   TransactionUtility,
   TokenRevocationUtility,
   JwtPayload,
@@ -102,6 +103,7 @@ export class MembershipManager {
     private readonly files: FileStorageUtility,
     private readonly tokenRevocation: TokenRevocationUtility,
     private readonly config: ConfigService,
+    private readonly permission: PermissionEngine,
   ) {}
 
   // --- UC-04 · Autenticación ---
@@ -528,6 +530,72 @@ export class MembershipManager {
 
     const updated = await this.requirePatient(patientId);
     return { patient: updated, age: this.deriveAge(updated.birthDate), linkRole: link.role };
+  }
+
+  /**
+   * UC-22 A3/A4 · Cambiar el rol de un vínculo ya existente del círculo. Solo un `consent-holder`
+   * (autorización vía `PermissionEngine`, §3.7 — no inline). Nunca deja al paciente sin
+   * `consent-holder` (política de titularidad A4): degradar al único titular se rechaza. Solo
+   * Membership escribe el vínculo (§3.3). Naturalmente idempotente: re-poner el mismo rol es no-op.
+   */
+  async changeLinkRole(
+    patientId: string,
+    targetAccountId: string,
+    newRole: LinkRole,
+    actorAccountId: string,
+  ): Promise<CircleMember> {
+    await this.requirePatient(patientId);
+
+    // Autorización: solo el titular (consent-holder), decidida por el PermissionEngine (§3.7).
+    const isConsentHolder = await this.permission.hasLinkRole(
+      { accountId: actorAccountId, patientId },
+      ['consent-holder'],
+    );
+    if (!isConsentHolder) {
+      throw new ForbiddenException('Solo el titular (consent-holder) puede cambiar el rol de un miembro del círculo');
+    }
+
+    // El objetivo debe pertenecer al círculo (vínculo existente).
+    const target = await this.accountAccess.getLink(patientId, targetAccountId);
+    if (!target) throw new NotFoundException('La cuenta no pertenece al círculo del paciente');
+
+    const account = await this.accountAccess.findAccountById(targetAccountId);
+    const toMember = (role: LinkRole, since: Date): CircleMember => ({
+      accountId: targetAccountId,
+      displayName: account?.displayName ?? '',
+      email: account?.email ?? '',
+      role,
+      since,
+    });
+
+    // No-op idempotente: mismo rol → nada que cambiar ni auditar.
+    if (target.role === newRole) return toMember(target.role, target.createdAt);
+
+    // Política de titularidad (A4): nunca dejar 0 consent-holders. Degradar al único titular se rechaza.
+    if (target.role === 'consent-holder' && newRole !== 'consent-holder') {
+      const links = await this.accountAccess.listLinksForPatient(patientId);
+      const consentHolders = links.filter((l) => l.role === 'consent-holder').length;
+      if (consentHolders <= 1) {
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'No se puede dejar al paciente sin titular: promové antes a otro miembro a consent-holder',
+          code: 'LAST_CONSENT_HOLDER',
+        });
+      }
+    }
+
+    const previousRole = target.role;
+    const updated = await this.accountAccess.updateLinkRole(patientId, targetAccountId, newRole);
+
+    // Trazabilidad (§2.3): quién, a quién, de qué rol a qué rol, cuándo.
+    await this.audit.record({
+      action: 'membership.circle.link-role-changed',
+      actor: actorAccountId,
+      target: { type: 'patient', id: patientId },
+      metadata: { targetAccountId, fromRole: previousRole, toRole: newRole },
+    });
+
+    return toMember(newRole, updated?.createdAt ?? target.createdAt);
   }
 
   private async requirePatient(patientId: string): Promise<Patient> {

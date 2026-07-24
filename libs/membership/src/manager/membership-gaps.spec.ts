@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MembershipManager } from './membership.manager';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { RegisterCaregiverDto } from './dto/register-caregiver.dto';
@@ -84,6 +84,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     files: {},
     tokenRevocation: { revoke: jest.fn(), isRevoked: jest.fn().mockResolvedValue(false) },
     config: { get: jest.fn((_k: string, d?: unknown) => d) },
+    permission: { hasLinkRole: jest.fn().mockResolvedValue(true) },
     ...overrides,
   };
   const manager = new MembershipManager(
@@ -97,6 +98,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     deps.files as never,
     deps.tokenRevocation as never,
     deps.config as never,
+    deps.permission as never,
   );
   return { manager, deps };
 }
@@ -180,6 +182,105 @@ describe('UC-22 · círculo del paciente (GET /patients/:id/links)', () => {
 
     await expect(manager.getPatientCircle('pat-1', 'acc-intruso')).rejects.toThrow(ForbiddenException);
     expect(access['listLinksForPatient']).not.toHaveBeenCalled();
+  });
+});
+
+describe('UC-22 A3/A4 · cambiar el rol de un miembro del círculo (PATCH /patients/:id/links/:accountId)', () => {
+  /** makeManager con el objetivo vinculado, su cuenta resoluble y updateLinkRole disponible. */
+  const makeCircleManager = (targetRole: string, isConsentHolder = true) => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    access['getLink'].mockResolvedValue({ patientId: 'pat-1', accountId: 'acc-target', role: targetRole });
+    access['findAccountById'] = jest
+      .fn()
+      .mockResolvedValue({ id: 'acc-target', displayName: 'Pedro Díaz', email: 'pedro@example.com' });
+    access['updateLinkRole'] = jest
+      .fn()
+      .mockResolvedValue({ patientId: 'pat-1', accountId: 'acc-target', role: 'manager', createdAt: new Date('2026-02-01') });
+    (deps.permission as { hasLinkRole: jest.Mock }).hasLinkRole.mockResolvedValue(isConsentHolder);
+    return { manager, deps, access };
+  };
+
+  it('Dado el titular (consent-holder), cuando promueve a un viewer a manager, entonces se escribe el vínculo y se audita el cambio de rol', async () => {
+    const { manager, deps, access } = makeCircleManager('viewer');
+
+    const member = await manager.changeLinkRole('pat-1', 'acc-target', 'manager', 'acc-titular');
+
+    expect((deps.permission as { hasLinkRole: jest.Mock }).hasLinkRole).toHaveBeenCalledWith(
+      { accountId: 'acc-titular', patientId: 'pat-1' },
+      ['consent-holder'],
+    );
+    expect(access['updateLinkRole']).toHaveBeenCalledWith('pat-1', 'acc-target', 'manager');
+    expect(member).toEqual(
+      expect.objectContaining({ accountId: 'acc-target', role: 'manager', email: 'pedro@example.com' }),
+    );
+    expect((deps.audit as { record: jest.Mock }).record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'membership.circle.link-role-changed',
+        actor: 'acc-titular',
+        target: { type: 'patient', id: 'pat-1' },
+        metadata: { targetAccountId: 'acc-target', fromRole: 'viewer', toRole: 'manager' },
+      }),
+    );
+  });
+
+  it('Dado un actor que no es consent-holder, cuando intenta cambiar un rol, entonces 403 y no se escribe nada', async () => {
+    const { manager, deps, access } = makeCircleManager('viewer', false);
+
+    await expect(manager.changeLinkRole('pat-1', 'acc-target', 'manager', 'acc-manager')).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(access['updateLinkRole']).not.toHaveBeenCalled();
+    expect((deps.audit as { record: jest.Mock }).record).not.toHaveBeenCalled();
+  });
+
+  it('Dado un objetivo que no pertenece al círculo, cuando el titular cambia su rol, entonces 404', async () => {
+    const { manager, deps } = makeManager();
+    const access = deps.accountAccess as Record<string, jest.Mock>;
+    (deps.permission as { hasLinkRole: jest.Mock }).hasLinkRole.mockResolvedValue(true);
+    access['getLink'].mockResolvedValue(null);
+    access['updateLinkRole'] = jest.fn();
+
+    await expect(manager.changeLinkRole('pat-1', 'acc-ajeno', 'manager', 'acc-titular')).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(access['updateLinkRole']).not.toHaveBeenCalled();
+  });
+
+  it('Dado el único consent-holder, cuando intenta degradarse a manager, entonces 409 LAST_CONSENT_HOLDER y no se escribe', async () => {
+    const { manager, deps, access } = makeCircleManager('consent-holder');
+    access['listLinksForPatient'].mockResolvedValue([
+      { patientId: 'pat-1', accountId: 'acc-target', role: 'consent-holder' },
+      { patientId: 'pat-1', accountId: 'acc-2', role: 'viewer' },
+    ]);
+
+    await expect(manager.changeLinkRole('pat-1', 'acc-target', 'manager', 'acc-target')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'LAST_CONSENT_HOLDER' }),
+    });
+    expect(access['updateLinkRole']).not.toHaveBeenCalled();
+    expect((deps.audit as { record: jest.Mock }).record).not.toHaveBeenCalled();
+  });
+
+  it('Dado un paciente con dos consent-holders, cuando se degrada a uno, entonces se permite (queda al menos un titular)', async () => {
+    const { manager, access } = makeCircleManager('consent-holder');
+    access['listLinksForPatient'].mockResolvedValue([
+      { patientId: 'pat-1', accountId: 'acc-target', role: 'consent-holder' },
+      { patientId: 'pat-1', accountId: 'acc-2', role: 'consent-holder' },
+    ]);
+
+    await manager.changeLinkRole('pat-1', 'acc-target', 'viewer', 'acc-2');
+
+    expect(access['updateLinkRole']).toHaveBeenCalledWith('pat-1', 'acc-target', 'viewer');
+  });
+
+  it('Dado el mismo rol que ya tiene, cuando el titular lo "cambia", entonces es un no-op idempotente (no escribe ni audita)', async () => {
+    const { manager, deps, access } = makeCircleManager('manager');
+
+    const member = await manager.changeLinkRole('pat-1', 'acc-target', 'manager', 'acc-titular');
+
+    expect(member.role).toBe('manager');
+    expect(access['updateLinkRole']).not.toHaveBeenCalled();
+    expect((deps.audit as { record: jest.Mock }).record).not.toHaveBeenCalled();
   });
 });
 

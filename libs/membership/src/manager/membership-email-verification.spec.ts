@@ -59,6 +59,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     files: {},
     tokenRevocation: { revokeAccountSessions: jest.fn().mockResolvedValue(undefined) },
     config: { get: jest.fn((_k: string, d?: unknown) => d) },
+    permission: { hasLinkRole: jest.fn().mockResolvedValue(true) },
     ...overrides,
   };
   const manager = new MembershipManager(
@@ -72,6 +73,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     deps.files as never,
     deps.tokenRevocation as never,
     deps.config as never,
+    deps.permission as never,
   );
   return { manager, deps };
 }
