@@ -332,7 +332,7 @@
     },
     "/api/v1/patients": {
       "post": {
-        "description": "Crea el perfil del paciente y vincula al creador como consent-holder. Idempotente por operationId (NFR-34).",
+        "description": "Crea el perfil del paciente y vincula al creador como consent-holder. Idempotente por operationId (NFR-34). Requiere rol de cuenta `family` (KER-50): caregiver/admin → 403.",
         "operationId": "MembershipController_registerPatient_v1",
         "parameters": [],
         "requestBody": {
@@ -362,7 +362,7 @@
             "bearer": []
           }
         ],
-        "summary": "UC-01 · Registrar paciente",
+        "summary": "UC-01 · Registrar paciente (solo rol family)",
         "tags": [
           "Membership"
         ]
@@ -1182,7 +1182,7 @@
             "bearer": []
           }
         ],
-        "summary": "UC-03 · Confirmar invitación y crear el vínculo",
+        "summary": "UC-03 · Confirmar invitación y crear el vínculo (solo rol family)",
         "tags": [
           "Invitations"
         ]
@@ -3063,7 +3063,6 @@
           "role": {
             "type": "string",
             "enum": [
-              "patient",
               "family",
               "caregiver"
             ],

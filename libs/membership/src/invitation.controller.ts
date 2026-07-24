@@ -7,7 +7,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthPrincipal, CurrentAccount, JwtAuthGuard, THROTTLE_LIMITS, THROTTLE_TTL_MS } from '@keru/core';
+import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard, THROTTLE_LIMITS, THROTTLE_TTL_MS } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import {
   CreateInvitationDto,
@@ -80,11 +80,17 @@ export class InvitationController {
     return this.membership.previewInvitation(token);
   }
 
-  /** Confirmar la invitación. Requiere sesión del invitado (desafío de identidad, NFR-19). */
+  /**
+   * Confirmar la invitación. Requiere sesión del invitado (desafío de identidad, NFR-19) y rol
+   * de cuenta `family` (KER-50): el círculo de un paciente se compone solo de cuentas family.
+   * Es el segundo punto donde una cuenta gana un vínculo con un paciente (el otro es UC-01);
+   * gatearlo por rol mantiene el invariante "solo family tiene vínculo". caregiver/admin → 403.
+   */
   @Post('invitations/:token/confirm')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'UC-03 · Confirmar invitación y crear el vínculo' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('family')
+  @ApiOperation({ summary: 'UC-03 · Confirmar invitación y crear el vínculo (solo rol family)' })
   @ApiOkResponse({ type: InvitationConfirmedDto })
   async confirm(
     @Param('token') token: string,

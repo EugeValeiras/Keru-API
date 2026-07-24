@@ -60,7 +60,8 @@ export async function createE2EApp(): Promise<INestApplication> {
 
 export async function signup(
   app: INestApplication,
-  role: 'patient' | 'family' | 'caregiver',
+  // KER-50: el self-signup solo acepta family/caregiver ('patient' salió del signup).
+  role: 'family' | 'caregiver',
   displayName = 'Cuenta E2E',
   opts: { verifyEmail?: boolean } = {},
 ): Promise<TestAccount> {
