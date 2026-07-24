@@ -76,7 +76,13 @@ describe('KER-52 · Catálogo + adjunto privado + aprobación por-certificación
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThan(0);
     const nursing = res.body.find((i: { key: string }) => i.key === 'nursing-degree');
-    expect(nursing).toMatchObject({ key: 'nursing-degree', label: expect.any(String), badgeIcon: expect.any(String) });
+    // KER-77: cada tipo trae su iconKey estable (SVG diseñado) además del emoji fallback.
+    expect(nursing).toMatchObject({
+      key: 'nursing-degree',
+      label: expect.any(String),
+      iconKey: 'stethoscope',
+      badgeIcon: expect.any(String),
+    });
   });
 
   it('Criterio 1 · registrar con un tipo FUERA del catálogo se rechaza (400)', async () => {
@@ -170,6 +176,7 @@ describe('KER-52 · Catálogo + adjunto privado + aprobación por-certificación
       catalogKey: 'nursing-degree',
       verified: true,
       label: expect.any(String),
+      iconKey: 'stethoscope',
       badgeIcon: expect.any(String),
     });
     // El documento privado NUNCA se expone al público.

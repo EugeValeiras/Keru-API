@@ -949,6 +949,7 @@ export class MembershipManager implements OnApplicationBootstrap {
       await this.catalogAccess.upsert({
         key: item.key,
         label: item.label,
+        iconKey: item.iconKey,
         badgeIcon: item.badgeIcon,
         sortOrder: i,
       });

@@ -16,7 +16,8 @@ export class UploadedDocumentDto {
 export class CertificationCatalogItemDto {
   @ApiProperty({ example: 'nursing-degree' }) key!: string;
   @ApiProperty({ example: 'Título de Enfermería' }) label!: string;
-  @ApiProperty({ example: '🩺' }) badgeIcon!: string;
+  @ApiProperty({ description: 'KER-77 · Clave estable del ícono SVG (set Lucide); la webapp la mapea a un SVG local', example: 'stethoscope' }) iconKey!: string;
+  @ApiProperty({ description: 'Emoji, fallback textual de iconKey', example: '🩺' }) badgeIcon!: string;
 }
 
 /**
