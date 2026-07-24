@@ -49,7 +49,8 @@ describe('KER-55 · muestras de email de marca', () => {
 
   it.each(SAMPLES)('$file es un email branded (logo con alt + CTA); se guarda la muestra', async ({ file, run }) => {
     const html = await captureHtml(run);
-    expect(html).toMatch(/<img[^>]*alt="keru"/);
+    expect(html).toMatch(/<img[^>]*alt="Keru"/);
+    expect(html).not.toContain('data:image'); // KER-64: logo por URL pública, no data-URI
     expect(html).toContain('href='); // el CTA/link está presente
     if (shouldWrite) writeFileSync(join(outDir, file), html, 'utf-8');
   });

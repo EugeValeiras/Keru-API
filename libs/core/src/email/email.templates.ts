@@ -12,12 +12,13 @@
  * - Sin JS. Ancho fijo ~600px. Preheader oculto para el preview del inbox.
  * - Botón CTA "bulletproof" con VML para Outlook (Word engine no respeta border-radius).
  *
- * Logo: el wordmark se embebe como data-URI SVG con alt="keru" (asset de marca exacto,
- * sin depender de la webapp corriendo ni de hosting de assets). Gmail y Outlook bloquean
- * las imágenes data-URI (cualquier formato), así que ahí el logo cae al texto alt "keru";
- * la identidad la sostienen igual el color, la tipografía y el CTA, que sí renderizan en
- * todos los clientes. Apple Mail / iOS Mail / Thunderbird sí muestran el SVG. Un follow-up
- * puede reemplazarlo por un PNG en una URL pública estable si se quiere el logo en Gmail.
+ * Logo (KER-64): el wordmark se sirve desde una URL pública HTTPS estable con alt="Keru", NO
+ * como data-URI. Gmail y Outlook BLOQUEAN las imágenes data: (cualquier formato) por seguridad,
+ * así que el logo caía al texto alt para la mayoría de los clientes; una URL http(s) pública sí
+ * renderiza en todos (incluidos Gmail/Outlook). Se prefiere PNG por compat de email (algunos
+ * clientes no rasterizan SVG remoto). La URL es configurable por env EMAIL_LOGO_URL (ver
+ * email.util.ts) con default DEFAULT_LOGO_URL; el asset canónico es el mismo wordmark que
+ * docs/brand/assets/keru-logo.svg, publicado como PNG en el CDN de marca.
  */
 
 // Paleta v2 (brand book §3). Solo los tokens que usa el email; hex explícitos porque
@@ -44,18 +45,13 @@ const TAGLINE = 'La calma de saber que alguien que sabe está cuidando a quien q
 const FONT_DISPLAY = "Georgia, 'Times New Roman', serif";
 const FONT_SANS = "'Helvetica Neue', Arial, sans-serif";
 
-// Wordmark "keru" minificado (mismo trazo que docs/brand/assets/keru-logo.svg): la "k"
-// como isotipo + el punto terracota (la persona cuidada). Se embebe como data-URI.
-const LOGO_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 158 64" width="158" height="64" role="img" aria-label="keru">' +
-  '<g fill="none" stroke="#2B2733" stroke-width="9" stroke-linecap="round">' +
-  '<path d="M14 13v37"/><path d="M19.5 35 35.5 50"/>' +
-  '<path d="M50 35h26a13 13 0 1 0-3.3 8.7"/>' +
-  '<path d="M90 24v26"/><path d="M90 38q0-14 13.5-14"/>' +
-  '<path d="M117 24v13a12.75 12.75 0 0 0 25.5 0v-13"/></g>' +
-  '<circle cx="37" cy="20" r="7" fill="#D96A3D"/></svg>';
-
-const LOGO_DATA_URI = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG, 'utf-8').toString('base64')}`;
+/**
+ * URL pública HTTPS por defecto del wordmark para emails (KER-64). PNG (compat de email) con el
+ * mismo trazo que docs/brand/assets/keru-logo.svg: la "k" como isotipo + el punto terracota (la
+ * persona cuidada). Se sirve desde el CDN de marca (convención cdn.keru.app, la misma de las fotos
+ * de paciente). Configurable por EMAIL_LOGO_URL; debe ser una URL estable, no versionada/caducable.
+ */
+export const DEFAULT_LOGO_URL = 'https://cdn.keru.app/email/keru-logo.png';
 
 /** Contenido de un email transaccional; la fuente única para la parte HTML y la de texto. */
 export interface BrandedEmailContent {
@@ -104,7 +100,7 @@ function renderCtaButton(label: string, url: string): string {
 }
 
 /** Envuelve el contenido en el marco de marca (header con logo, container 600px, footer). */
-export function renderBrandedHtml(content: BrandedEmailContent): string {
+export function renderBrandedHtml(content: BrandedEmailContent, logoUrl: string = DEFAULT_LOGO_URL): string {
   const introHtml = content.intro
     .map(
       (p) =>
@@ -124,6 +120,7 @@ export function renderBrandedHtml(content: BrandedEmailContent): string {
     .join('');
 
   const safeUrl = escapeHtml(content.cta.url);
+  const safeLogoUrl = escapeHtml(logoUrl);
 
   return `<!doctype html>
 <html lang="es" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -149,7 +146,7 @@ export function renderBrandedHtml(content: BrandedEmailContent): string {
           <!-- Header con logo -->
           <tr>
             <td align="center" style="padding:28px 32px 8px;">
-              <img src="${LOGO_DATA_URI}" width="108" height="44" alt="keru" style="display:block;border:0;outline:none;text-decoration:none;height:44px;width:108px;">
+              <img src="${safeLogoUrl}" width="108" height="44" alt="Keru" style="display:block;border:0;outline:none;text-decoration:none;height:44px;width:108px;">
             </td>
           </tr>
           <!-- Cuerpo -->
@@ -211,6 +208,9 @@ export function renderBrandedText(content: BrandedEmailContent): string {
 }
 
 /** Renderiza ambas partes (HTML + texto) de un email transaccional de marca. */
-export function renderBrandedEmail(content: BrandedEmailContent): { html: string; text: string } {
-  return { html: renderBrandedHtml(content), text: renderBrandedText(content) };
+export function renderBrandedEmail(
+  content: BrandedEmailContent,
+  logoUrl: string = DEFAULT_LOGO_URL,
+): { html: string; text: string } {
+  return { html: renderBrandedHtml(content, logoUrl), text: renderBrandedText(content) };
 }
