@@ -73,6 +73,9 @@ export interface InvitationPreview {
   patientId: string;
   patientName: string;
   invitedEmail: string;
+  /** UC-03/KER-67 · Rol del vínculo a otorgar (manager/viewer). Informa el registro/landing;
+   * lo fijó quien invitó, el invitado no lo elige. `consent-holder` no se otorga por invitación. */
+  roleToGrant: LinkRole;
   expiresAt: Date;
   valid: boolean;
 }
@@ -1234,6 +1237,7 @@ export class MembershipManager implements OnApplicationBootstrap {
       patientId: inv.patientId,
       patientName: patient?.fullName ?? '',
       invitedEmail: inv.invitedEmail,
+      roleToGrant: inv.roleToGrant,
       expiresAt: inv.expiresAt,
       valid: inv.status === 'pending' && inv.expiresAt.getTime() > Date.now(),
     };

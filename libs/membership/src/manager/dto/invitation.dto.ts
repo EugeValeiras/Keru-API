@@ -89,6 +89,34 @@ export class EmittedInvitationDto {
   }
 }
 
+/**
+ * UC-03 · Previsualización pública de una invitación (deep link, sin sesión).
+ * Datos para la pantalla de confirmación y el registro por invitación (KER-67):
+ * el `roleToGrant` informa el rol del vínculo; el `invitedEmail` prellena+bloquea el email.
+ */
+export class InvitationPreviewDto {
+  @ApiProperty({ format: 'uuid' })
+  patientId!: string;
+
+  @ApiProperty({ description: 'Nombre del paciente al que se invita a acompañar.' })
+  patientName!: string;
+
+  @ApiProperty({ description: 'Email invitado: prellena y bloquea el email del registro (NFR-19).' })
+  invitedEmail!: string;
+
+  @ApiProperty({
+    enum: ['manager', 'viewer'],
+    description: 'Rol del vínculo a otorgar (informativo; lo fijó quien invitó). KER-67.',
+  })
+  roleToGrant!: LinkRole;
+
+  @ApiProperty({ description: 'Vence a los 30 minutos de emitida (OQ-2).' })
+  expiresAt!: Date;
+
+  @ApiProperty({ description: 'true solo si está pendiente y no expiró; false → no se puede confirmar.' })
+  valid!: boolean;
+}
+
 /** Resultado de confirmar una invitación. */
 export class InvitationConfirmedDto {
   @ApiProperty({ format: 'uuid' })
