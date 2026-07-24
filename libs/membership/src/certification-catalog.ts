@@ -15,22 +15,30 @@ export interface CertificationCatalogItem {
   key: string;
   /** Nombre visible de la certificación. */
   label: string;
-  /** Ícono de la insignia asociada (emoji). */
+  /**
+   * KER-77 · Clave estable del ícono SVG diseñado de la insignia (nombre del set Lucide, brand book §5).
+   * La webapp la mapea a un SVG bundleado localmente (`kr-cert-icon`); NO es una URL externa.
+   */
+  iconKey: string;
+  /**
+   * Ícono de la insignia asociada (emoji). KER-77: queda como FALLBACK textual (contextos donde no se
+   * puede renderizar SVG inline, p.ej. un `<option>`, y usos text-only). El glifo visible es `iconKey`.
+   */
   badgeIcon: string;
 }
 
 export const CERTIFICATION_CATALOG: Record<string, CertificationCatalogItem> = {
-  'nursing-degree': { key: 'nursing-degree', label: 'Título de Enfermería', badgeIcon: '🩺' },
-  'nursing-assistant': { key: 'nursing-assistant', label: 'Auxiliar de Enfermería', badgeIcon: '💉' },
-  cpr: { key: 'cpr', label: 'RCP', badgeIcon: '❤️' },
-  'first-aid': { key: 'first-aid', label: 'Primeros Auxilios', badgeIcon: '🚑' },
-  'geriatric-care': { key: 'geriatric-care', label: 'Cuidado Geriátrico', badgeIcon: '🧓' },
-  'palliative-care': { key: 'palliative-care', label: 'Cuidados Paliativos', badgeIcon: '🕊️' },
-  'dementia-care': { key: 'dementia-care', label: 'Cuidado de Demencia / Alzheimer', badgeIcon: '🧠' },
-  'physical-therapy': { key: 'physical-therapy', label: 'Kinesiología', badgeIcon: '🦵' },
-  'therapeutic-companion': { key: 'therapeutic-companion', label: 'Acompañante Terapéutico', badgeIcon: '🤝' },
-  'pediatric-nursing': { key: 'pediatric-nursing', label: 'Enfermería Pediátrica', badgeIcon: '🧸' },
-  'diabetes-nutrition': { key: 'diabetes-nutrition', label: 'Diabetes y Nutrición', badgeIcon: '🍎' },
+  'nursing-degree': { key: 'nursing-degree', label: 'Título de Enfermería', iconKey: 'stethoscope', badgeIcon: '🩺' },
+  'nursing-assistant': { key: 'nursing-assistant', label: 'Auxiliar de Enfermería', iconKey: 'syringe', badgeIcon: '💉' },
+  cpr: { key: 'cpr', label: 'RCP', iconKey: 'heart-pulse', badgeIcon: '❤️' },
+  'first-aid': { key: 'first-aid', label: 'Primeros Auxilios', iconKey: 'ambulance', badgeIcon: '🚑' },
+  'geriatric-care': { key: 'geriatric-care', label: 'Cuidado Geriátrico', iconKey: 'accessibility', badgeIcon: '🧓' },
+  'palliative-care': { key: 'palliative-care', label: 'Cuidados Paliativos', iconKey: 'bird', badgeIcon: '🕊️' },
+  'dementia-care': { key: 'dementia-care', label: 'Cuidado de Demencia / Alzheimer', iconKey: 'brain', badgeIcon: '🧠' },
+  'physical-therapy': { key: 'physical-therapy', label: 'Kinesiología', iconKey: 'bone', badgeIcon: '🦵' },
+  'therapeutic-companion': { key: 'therapeutic-companion', label: 'Acompañante Terapéutico', iconKey: 'heart-handshake', badgeIcon: '🤝' },
+  'pediatric-nursing': { key: 'pediatric-nursing', label: 'Enfermería Pediátrica', iconKey: 'baby', badgeIcon: '🧸' },
+  'diabetes-nutrition': { key: 'diabetes-nutrition', label: 'Diabetes y Nutrición', iconKey: 'apple', badgeIcon: '🍎' },
 };
 
 export const CERTIFICATION_CATALOG_KEYS = Object.keys(CERTIFICATION_CATALOG);

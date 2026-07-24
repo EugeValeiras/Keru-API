@@ -14,7 +14,8 @@ export class CertificationView {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ example: 'nursing-degree' }) catalogKey!: string;
   @ApiProperty({ description: 'Nombre visible (catálogo)', example: 'Título de Enfermería' }) label!: string;
-  @ApiProperty({ description: 'Ícono de la insignia (catálogo)', example: '🩺' }) badgeIcon!: string;
+  @ApiProperty({ description: 'KER-77 · Clave estable del ícono SVG de la insignia (set Lucide); la webapp la mapea a un SVG local', example: 'stethoscope' }) iconKey!: string;
+  @ApiProperty({ description: 'Ícono de la insignia (catálogo, emoji). Fallback textual de iconKey', example: '🩺' }) badgeIcon!: string;
   @ApiProperty() institution!: string;
   @ApiProperty() year!: number;
   @ApiProperty({ enum: ['pending', 'approved', 'rejected'] }) status!: CertificationStatus;
@@ -33,12 +34,18 @@ function badgeOf(catalogKey: string): string {
   return CERTIFICATION_CATALOG[catalogKey]?.badgeIcon ?? '📄';
 }
 
+/** KER-77 · Ícono SVG de la insignia; `award` es el genérico si el tipo no está en el catálogo. */
+function iconKeyOf(catalogKey: string): string {
+  return CERTIFICATION_CATALOG[catalogKey]?.iconKey ?? 'award';
+}
+
 /** Vista completa de una cert (dueño/admin): todas menos la `documentKey` privada. */
 export function toCertificationView(c: Certification): CertificationView {
   return {
     id: c.id,
     catalogKey: c.catalogKey,
     label: labelOf(c.catalogKey),
+    iconKey: iconKeyOf(c.catalogKey),
     badgeIcon: badgeOf(c.catalogKey),
     institution: c.institution,
     year: c.year,
@@ -58,6 +65,7 @@ export function publicCertifications(certs: Certification[] | undefined): Certif
       id: c.id,
       catalogKey: c.catalogKey,
       label: labelOf(c.catalogKey),
+      iconKey: iconKeyOf(c.catalogKey),
       badgeIcon: badgeOf(c.catalogKey),
       institution: c.institution,
       year: c.year,

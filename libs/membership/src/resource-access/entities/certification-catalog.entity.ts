@@ -15,7 +15,14 @@ export class CertificationCatalog {
   @Column({ type: 'varchar', length: 120 })
   label!: string;
 
-  /** Ícono de la insignia asociada (emoji). */
+  /**
+   * KER-77 · Clave estable del ícono SVG diseñado (nombre del set Lucide, brand book §5). La webapp la
+   * mapea a un SVG bundleado localmente; NO es una URL externa. Fuente: `certification-catalog.ts`.
+   */
+  @Column({ type: 'varchar', length: 64, default: '' })
+  iconKey!: string;
+
+  /** Ícono de la insignia asociada (emoji). KER-77: fallback textual (ver `certification-catalog.ts`). */
   @Column({ type: 'varchar', length: 16 })
   badgeIcon!: string;
 

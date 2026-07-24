@@ -4163,9 +4163,14 @@
             "description": "Nombre visible (catálogo)",
             "example": "Título de Enfermería"
           },
+          "iconKey": {
+            "type": "string",
+            "description": "KER-77 · Clave estable del ícono SVG de la insignia (set Lucide); la webapp la mapea a un SVG local",
+            "example": "stethoscope"
+          },
           "badgeIcon": {
             "type": "string",
-            "description": "Ícono de la insignia (catálogo)",
+            "description": "Ícono de la insignia (catálogo, emoji). Fallback textual de iconKey",
             "example": "🩺"
           },
           "institution": {
@@ -4203,6 +4208,7 @@
           "id",
           "catalogKey",
           "label",
+          "iconKey",
           "badgeIcon",
           "institution",
           "year",
@@ -4341,14 +4347,21 @@
             "type": "string",
             "example": "Título de Enfermería"
           },
+          "iconKey": {
+            "type": "string",
+            "description": "KER-77 · Clave estable del ícono SVG (set Lucide); la webapp la mapea a un SVG local",
+            "example": "stethoscope"
+          },
           "badgeIcon": {
             "type": "string",
+            "description": "Emoji, fallback textual de iconKey",
             "example": "🩺"
           }
         },
         "required": [
           "key",
           "label",
+          "iconKey",
           "badgeIcon"
         ]
       },

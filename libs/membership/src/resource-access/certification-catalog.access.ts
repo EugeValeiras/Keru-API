@@ -27,7 +27,7 @@ export class CertificationCatalogAccess {
    * existe y esto es un no-op de datos; en bases dev/e2e con `synchronize` (sin migraciones) es quien
    * materializa el catálogo al arranque (mismo criterio que el ensure de `range_version`).
    */
-  async upsert(item: { key: string; label: string; badgeIcon: string; sortOrder: number }): Promise<void> {
+  async upsert(item: { key: string; label: string; iconKey: string; badgeIcon: string; sortOrder: number }): Promise<void> {
     await this.catalog.save(this.catalog.create(item));
   }
 }

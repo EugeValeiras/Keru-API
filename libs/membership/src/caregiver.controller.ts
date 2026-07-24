@@ -72,7 +72,7 @@ export class CaregiverController {
   @ApiOkResponse({ type: CertificationCatalogItemDto, isArray: true })
   async certificationCatalog(): Promise<CertificationCatalogItemDto[]> {
     const items = await this.membership.listCertificationCatalog();
-    return items.map((i) => ({ key: i.key, label: i.label, badgeIcon: i.badgeIcon }));
+    return items.map((i) => ({ key: i.key, label: i.label, iconKey: i.iconKey, badgeIcon: i.badgeIcon }));
   }
 
   @Post('me/certifications')
