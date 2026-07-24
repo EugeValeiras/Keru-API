@@ -33,13 +33,13 @@ Operación cotidiana:
 
 ```bash
 docker compose --profile app up -d backup        # levantar solo el servicio de backup
-docker logs keru-backup                          # bitácora: "backup OK: keru-<ts>.dump (N bytes)"
+docker compose --profile app logs backup         # bitácora: "backup OK: keru-<ts>.dump (N bytes)"
 # listar dumps del volumen
 docker compose --profile app run --rm --no-deps -T --entrypoint sh backup -c 'ls -lt /backups'
 # backup manual on-demand (misma nomenclatura que el ciclo)
-docker exec keru-backup sh -c 'ts=$(date -u +%Y%m%dT%H%M%SZ); pg_dump -Fc -f "/backups/.$ts.part" && mv "/backups/.$ts.part" "/backups/keru-$ts.dump"'
+docker compose --profile app exec backup sh -c 'ts=$(date -u +%Y%m%dT%H%M%SZ); pg_dump -Fc -f "/backups/.$ts.part" && mv "/backups/.$ts.part" "/backups/keru-$ts.dump"'
 # copiar un dump fuera del host (paso previo a un offsite manual)
-docker cp keru-backup:/backups/keru-<ts>.dump ./
+docker compose --profile app cp backup:/backups/keru-<ts>.dump ./
 ```
 
 ## 2. Restore drill
@@ -96,7 +96,7 @@ Si hay que restaurar **la base real** tras una pérdida:
 1. Bajar la API (`docker compose --profile app stop api webapp`) — nadie escribe durante
    el restore.
 2. Preservar lo que quede: `ALTER DATABASE keru RENAME TO keru_corrupta_<fecha>;` y
-   `CREATE DATABASE keru;` (desde `psql -U keru -d postgres` en `keru-postgres`).
+   `CREATE DATABASE keru;` (`docker compose exec postgres psql -U keru -d postgres`).
 3. Restaurar el último dump sano (mismo comando que el drill, apuntando a `keru`):
    `docker compose --profile app run --rm --no-deps -T --entrypoint pg_restore backup -d keru --no-owner --single-transaction /backups/keru-<ts>.dump`
 4. Levantar la API y verificar `GET /api/v1/health` = `ok`.

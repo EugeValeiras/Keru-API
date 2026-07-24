@@ -1,18 +1,22 @@
-# Nombre de proyecto fijo: los container_name/volúmenes son los mismos se corra desde
-# donde se corra (checkout base, worktree de tarea o CI) — sin colisiones ni duplicados.
+# Proyecto AISLABLE (KER-60). El nombre de proyecto default es "keru-api" (el mismo se corra
+# desde el checkout base, un worktree o el CI). Para levantar N stacks EN PARALELO sin colisión
+# —p. ej. verificación aislada por tarea— pasá `-p keru-<tarea>`: docker compose nombra los
+# contenedores y prefija los volúmenes por proyecto, así que NO hay container_name fijos.
+# Los puertos de host salen por env con default = valor histórico (el CI y el dev quedan igual);
+# poniéndolos en 0 se publican EFÍMEROS y se descubren con `docker compose -p <proj> port <svc> <puerto>`.
 name: keru-api
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: keru-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: keru
       POSTGRES_PASSWORD: keru
       POSTGRES_DB: keru
     ports:
-      - '5432:5432'
+      # Default 5432 (dev/CI intactos); POSTGRES_HOST_PORT=0 publica efímero para correr en paralelo.
+      - '${POSTGRES_HOST_PORT:-5432}:5432'
     volumes:
       - keru_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -23,10 +27,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: keru-redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      # Default 6379; REDIS_HOST_PORT=0 publica efímero (aislamiento por tarea).
+      - '${REDIS_HOST_PORT:-6379}:6379'
     volumes:
       - keru_redisdata:/data
     healthcheck:
@@ -39,10 +43,10 @@ services:
   # y S3 (fotos de perfil, UC-01/02/06). Edge en :4566; las credenciales son ignoradas.
   floci:
     image: floci/floci:latest
-    container_name: keru-floci
     restart: unless-stopped
     ports:
-      - '4566:4566'
+      # Default 4566; FLOCI_HOST_PORT=0 publica efímero (aislamiento por tarea).
+      - '${FLOCI_HOST_PORT:-4566}:4566'
     environment:
       AWS_DEFAULT_REGION: us-east-1
       SERVICES: ses,s3
@@ -53,12 +57,12 @@ services:
   # `docker compose --profile app up -d --build` levanta también la API y la webapp compilada.
   api:
     build: .
-    container_name: keru-api
     restart: unless-stopped
     profiles: ['app']
     ports:
       # Puerto publicado en el host configurable: API_PORT=3001 si el :3000 ya lo
-      # ocupa la API dev (npm run start:dev). Adentro de la red siempre es 3000.
+      # ocupa la API dev (npm run start:dev), o API_PORT=0 para efímero (aislamiento).
+      # Adentro de la red siempre es 3000.
       - '${API_PORT:-3000}:3000'
     environment:
       PORT: 3000
@@ -116,7 +120,6 @@ services:
   # RPO/RTO y gap-disclosure (sin PITR, sin offsite) en docs/ops/backups.md.
   backup:
     image: postgres:16-alpine
-    container_name: keru-backup
     restart: unless-stopped
     profiles: ['app']
     environment:
@@ -166,11 +169,12 @@ services:
   webapp:
     build:
       context: ${KERU_WEBAPP_DIR:-../Keru-Webapp}
-    container_name: keru-webapp
     restart: unless-stopped
     profiles: ['app']
     ports:
-      - '8080:80'
+      # Default 8080; WEBAPP_HOST_PORT=0 publica efímero. (La verificación aislada NO usa
+      # este servicio: corre la webapp por `ng serve` — más liviano y espeja el CI.)
+      - '${WEBAPP_HOST_PORT:-8080}:80'
     depends_on:
       api:
         condition: service_healthy
