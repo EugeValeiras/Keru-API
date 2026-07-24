@@ -56,9 +56,17 @@ export class FileStorageUtility {
   private readonly bucket: string;
   private readonly publicBaseUrl: string;
   private bucketEnsured = false;
+  /**
+   * KER-76 · Modo emulador: hay un AWS_ENDPOINT_URL seteado (floci/localstack en local/CI). Solo en
+   * ese modo `ensureBucket()` crea el bucket. En AWS real (sin endpoint) el bucket lo provisiona
+   * Terraform, así que crearlo desde el task role es un privilegio innecesario (least-privilege): no
+   * dependemos de `s3:CreateBucket` en el rol.
+   */
+  private readonly emulated: boolean;
 
   constructor(private readonly config: ConfigService) {
     const endpoint = this.config.get<string>('AWS_ENDPOINT_URL');
+    this.emulated = !!endpoint;
     this.bucket = this.config.get<string>('S3_BUCKET', 'keru-media');
     // KER-70: la URL pública de las fotos se resuelve POR AMBIENTE vía S3_PUBLIC_URL, con el MISMO
     // host de CDN que el logo de email (EMAIL_LOGO_URL): cdn.dev.keru.ar en dev y cdn.keru.ar en
@@ -190,6 +198,13 @@ export class FileStorageUtility {
 
   private async ensureBucket(): Promise<void> {
     if (this.bucketEnsured) {
+      return;
+    }
+    // KER-76 · En AWS real (sin AWS_ENDPOINT_URL) el bucket ya existe (lo provisiona Terraform):
+    // NO-OP para no depender de `s3:CreateBucket` en el task role (least-privilege). La creación
+    // solo ocurre contra el emulador (floci/localstack).
+    if (!this.emulated) {
+      this.bucketEnsured = true;
       return;
     }
     try {

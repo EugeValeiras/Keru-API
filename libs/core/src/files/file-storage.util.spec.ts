@@ -136,8 +136,8 @@ describe('FileStorageUtility · observabilidad de getPrivateDocument (KER-75)', 
 
   it('putDocument: un fallo de PutObject deja de ser opaco — se loguea name+requestId antes de propagar', async () => {
     const err = s3Error('AccessDenied', 'REQ-PUT');
-    const util = utilWith({});
-    // ensureBucket (primer send) ok; el PutObject del documento (segundo send) falla.
+    // Con endpoint (floci): ensureBucket (primer send) ok; el PutObject del documento (segundo send) falla.
+    const util = utilWith({ AWS_ENDPOINT_URL: 'http://localhost:4566' });
     (util as unknown as { client: { send: jest.Mock } }).client.send = jest
       .fn()
       .mockResolvedValueOnce({})
@@ -148,5 +148,63 @@ describe('FileStorageUtility · observabilidad de getPrivateDocument (KER-75)', 
     await expect(util.putDocument(Buffer.from('pdf'), 'application/pdf')).rejects.toBe(err);
     expect(logError.mock.calls[0][0]).toContain('name=AccessDenied');
     expect(logError.mock.calls[0][0]).toContain('requestId=REQ-PUT');
+  });
+});
+
+/**
+ * KER-76 · `ensureBucket()` NO debe depender de `s3:CreateBucket` en AWS real (least-privilege). El
+ * bucket lo provisiona Terraform; el task role no tiene por qué poder crearlo. Regla: solo se envía
+ * `CreateBucketCommand` en modo emulador (AWS_ENDPOINT_URL seteado → floci/localstack). Sin endpoint
+ * (AWS real), `ensureBucket()` es no-op y las subidas van directo al bucket pre-provisto.
+ */
+describe('FileStorageUtility · ensureBucket least-privilege (KER-76)', () => {
+  /** Espía `client.send` (todos los comandos resuelven ok) y devuelve la util + el spy. */
+  function utilSpyingSend(env: Record<string, string | undefined>) {
+    const util = new FileStorageUtility(configWith(env));
+    const send = jest.fn().mockResolvedValue({});
+    (util as unknown as { client: { send: jest.Mock } }).client.send = send;
+    return { util, send };
+  }
+
+  /** Nombre del comando del SDK v3 con el que se llamó a `send` (p. ej. 'CreateBucketCommand'). */
+  const commandNames = (send: jest.Mock): string[] =>
+    send.mock.calls.map((c) => (c[0] as object).constructor.name);
+
+  it('Sin AWS_ENDPOINT_URL (AWS real): putImage NO emite CreateBucketCommand (0 llamadas)', async () => {
+    const { util, send } = utilSpyingSend({});
+    await util.putImage(Buffer.from('x'), 'image/png');
+    expect(commandNames(send)).not.toContain('CreateBucketCommand');
+    // Solo el PutObject de la imagen sale al bucket pre-provisto.
+    expect(commandNames(send)).toEqual(['PutObjectCommand']);
+  });
+
+  it('Sin AWS_ENDPOINT_URL: putDocument tampoco crea bucket — sube directo al bucket pre-provisto', async () => {
+    const { util, send } = utilSpyingSend({});
+    await util.putDocument(Buffer.from('pdf'), 'application/pdf');
+    expect(commandNames(send)).toEqual(['PutObjectCommand']);
+  });
+
+  it('Con AWS_ENDPOINT_URL (floci): putImage SÍ asegura el bucket con CreateBucketCommand primero', async () => {
+    const { util, send } = utilSpyingSend({ AWS_ENDPOINT_URL: 'http://localhost:4566' });
+    await util.putImage(Buffer.from('x'), 'image/png');
+    expect(commandNames(send)).toEqual(['CreateBucketCommand', 'PutObjectCommand']);
+  });
+
+  it('Con AWS_ENDPOINT_URL: el bucket se asegura una sola vez (se cachea entre subidas)', async () => {
+    const { util, send } = utilSpyingSend({ AWS_ENDPOINT_URL: 'http://localhost:4566' });
+    await util.putImage(Buffer.from('x'), 'image/png');
+    await util.putImage(Buffer.from('y'), 'image/jpeg');
+    // Un solo CreateBucket para las dos subidas.
+    expect(commandNames(send).filter((n) => n === 'CreateBucketCommand')).toHaveLength(1);
+  });
+
+  it('Modo emulador: un CreateBucket que falla con BucketAlreadyOwnedByYou no rompe la subida', async () => {
+    const { util } = utilSpyingSend({ AWS_ENDPOINT_URL: 'http://localhost:4566' });
+    (util as unknown as { client: { send: jest.Mock } }).client.send = jest
+      .fn()
+      .mockRejectedValueOnce(s3Error('BucketAlreadyOwnedByYou'))
+      .mockResolvedValue({});
+    const { url } = await util.putImage(Buffer.from('x'), 'image/png');
+    expect(url).toMatch(/\/images\/[0-9a-f-]+\.png$/);
   });
 });
