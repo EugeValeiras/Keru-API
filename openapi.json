@@ -518,6 +518,61 @@
         ]
       }
     },
+    "/api/v1/patients/{id}/links/{accountId}": {
+      "patch": {
+        "description": "Re-asigna el rol de un vínculo existente. Solo el titular (consent-holder), decidido por el PermissionEngine (no inline): un manager/viewer recibe 403, un objetivo no vinculado 404. Nunca deja al paciente sin consent-holder (degradar al único titular → 409 LAST_CONSENT_HOLDER). Naturalmente idempotente (sin operationId); queda auditado (actor, objetivo, rol anterior→nuevo).",
+        "operationId": "MembershipController_changeLinkRole_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeLinkRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientLinkDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UC-22 · Cambiar el rol de un miembro del círculo",
+        "tags": [
+          "Membership"
+        ]
+      }
+    },
     "/api/v1/caregivers": {
       "post": {
         "description": "Crea el perfil profesional en estado pending. No visible en el marketplace hasta UC-19.",
@@ -3579,6 +3634,23 @@
           }
         }
       },
+      "ChangeLinkRoleDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "consent-holder",
+              "manager",
+              "viewer"
+            ],
+            "description": "Nuevo rol del vínculo con el paciente."
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
       "CertificationDto": {
         "type": "object",
         "properties": {
@@ -3656,11 +3728,10 @@
           "displayName": {
             "type": "string",
             "deprecated": true,
-            "description": "Ignorado (ADR-0003): el nombre lo aporta la cuenta (identidad fuente única en Account)."
+            "description": "Ignorado (ADR-0003): el nombre lo aporta la cuenta."
           },
           "photoUrl": {
             "type": "string",
-            "description": "Foto opcional; si se envía al registrar se guarda en la cuenta (ADR-0003).",
             "example": "http://localhost:4566/keru-media/images/abc.jpg"
           },
           "specialties": {

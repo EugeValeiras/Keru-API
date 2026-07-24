@@ -10,6 +10,7 @@ import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard } from '
 import { MembershipManager } from './manager/membership.manager';
 import { RegisterPatientDto } from './manager/dto/register-patient.dto';
 import { UpdatePatientDto } from './manager/dto/update-patient.dto';
+import { ChangeLinkRoleDto } from './manager/dto/change-link-role.dto';
 import { PatientLinkDto, PatientRecordDto, PatientResponseDto } from './manager/dto/patient-response.dto';
 
 /**
@@ -109,5 +110,26 @@ export class MembershipController {
   ): Promise<PatientRecordDto> {
     const record = await this.membership.updatePatient(id, dto, account.accountId);
     return PatientRecordDto.from(record.patient, record.age, record.linkRole);
+  }
+
+  /** UC-22 A3 · Cambiar el rol de un miembro del círculo (solo consent-holder). */
+  @Patch('patients/:id/links/:accountId')
+  @ApiOperation({
+    summary: 'UC-22 · Cambiar el rol de un miembro del círculo',
+    description:
+      'Re-asigna el rol de un vínculo existente. Solo el titular (consent-holder), decidido por el ' +
+      'PermissionEngine (no inline): un manager/viewer recibe 403, un objetivo no vinculado 404. ' +
+      'Nunca deja al paciente sin consent-holder (degradar al único titular → 409 LAST_CONSENT_HOLDER). ' +
+      'Naturalmente idempotente (sin operationId); queda auditado (actor, objetivo, rol anterior→nuevo).',
+  })
+  @ApiOkResponse({ type: PatientLinkDto })
+  async changeLinkRole(
+    @Param('id') id: string,
+    @Param('accountId') accountId: string,
+    @Body() dto: ChangeLinkRoleDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<PatientLinkDto> {
+    const member = await this.membership.changeLinkRole(id, accountId, dto.role, account.accountId);
+    return { ...member, since: member.since.toISOString() };
   }
 }
