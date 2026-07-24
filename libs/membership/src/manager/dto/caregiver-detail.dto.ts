@@ -13,6 +13,7 @@ export class CaregiverDetailDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() accountId!: string;
   @ApiProperty() displayName!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) photoUrl?: string | null;
   @ApiProperty({ enum: ['pending', 'approved', 'rejected', 'deactivated'] }) status!: CaregiverStatus;
   @ApiProperty({ type: [String] }) specialties!: string[];
   @ApiProperty({ type: [CertificationView], description: 'Certificaciones con estado por-cert + hasDocument (para descargar/aprobar). Sin la key privada.' })
@@ -32,6 +33,7 @@ export class CaregiverDetailDto {
       id: c.id,
       accountId: c.accountId,
       displayName: c.displayName,
+      photoUrl: c.photoUrl,
       status: c.status,
       specialties: c.specialties,
       certifications: ownerCertifications(c.certifications),

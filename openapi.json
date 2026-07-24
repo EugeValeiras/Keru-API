@@ -4417,6 +4417,10 @@
           "displayName": {
             "type": "string"
           },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "status": {
             "type": "string",
             "enum": [
