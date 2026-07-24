@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnApplicationBootstrap,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -28,9 +29,13 @@ import {
 } from '@keru/core';
 import { AccountAccess, UpdateAccountInput } from '../resource-access/account.access';
 import { CaregiverAccess, UpdateApprovedProfileInput } from '../resource-access/caregiver.access';
+import { CertificationCatalogAccess } from '../resource-access/certification-catalog.access';
 import { Account } from '../resource-access/entities/account.entity';
 import { Patient } from '../resource-access/entities/patient.entity';
-import { Caregiver } from '../resource-access/entities/caregiver.entity';
+import { Caregiver, Certification } from '../resource-access/entities/caregiver.entity';
+import { CertificationCatalog } from '../resource-access/entities/certification-catalog.entity';
+import { CERTIFICATION_CATALOG, isCertificationCatalogKey } from '../certification-catalog';
+import { AddCertificationDto } from './dto/certification-io.dto';
 import { FamilyInvitation } from '../resource-access/entities/family-invitation.entity';
 import { RegisterPatientDto } from './dto/register-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -87,7 +92,7 @@ export interface CircleMember {
  */
 @Manager()
 @Injectable()
-export class MembershipManager {
+export class MembershipManager implements OnApplicationBootstrap {
   private readonly logger = new Logger(MembershipManager.name);
 
   private static readonly SALT_ROUNDS = 10;
@@ -96,6 +101,7 @@ export class MembershipManager {
     private readonly tx: TransactionUtility,
     private readonly accountAccess: AccountAccess,
     private readonly caregiverAccess: CaregiverAccess,
+    private readonly catalogAccess: CertificationCatalogAccess,
     private readonly jwt: JwtService,
     private readonly pubsub: PubSubUtility,
     private readonly audit: AuditUtility,
@@ -630,7 +636,7 @@ export class MembershipManager {
       {
         accountId,
         specialties: dto.specialties,
-        certifications: dto.certifications.map((c) => ({ ...c, verified: false })),
+        certifications: dto.certifications.map((c) => this.buildCertification(c)),
         availability: dto.availability,
         rates: { ratePerHour: dto.rates.ratePerHour, currency: dto.rates.currency ?? 'ARS', description: dto.rates.description },
         zone: dto.zone,
@@ -671,7 +677,7 @@ export class MembershipManager {
 
     await this.caregiverAccess.resubmitProfile(existing.id, {
       specialties: dto.specialties,
-      certifications: dto.certifications.map((c) => ({ ...c, verified: false })),
+      certifications: dto.certifications.map((c) => this.buildCertification(c)),
       availability: dto.availability,
       rates: { ratePerHour: dto.rates.ratePerHour, currency: dto.rates.currency ?? 'ARS', description: dto.rates.description },
       zone: dto.zone,
@@ -865,6 +871,195 @@ export class MembershipManager {
   async uploadImage(buffer: Buffer, mimeType: string): Promise<{ url: string }> {
     const { url } = await this.files.putImage(buffer, mimeType);
     return { url };
+  }
+
+  // --- KER-52 · Certificaciones: catálogo, adjunto privado y aprobación por-cert ---
+
+  /**
+   * KER-52 · Ensure de arranque del catálogo finito (idempotente, desde `CERTIFICATION_CATALOG`).
+   * En una base migrada el seed ya existe y esto es un no-op; en bases dev/e2e con `synchronize`
+   * (sin migraciones) es quien materializa el catálogo (mismo criterio que el ensure de range_version).
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    await this.ensureCertificationCatalog();
+  }
+
+  async ensureCertificationCatalog(): Promise<void> {
+    const keys = Object.keys(CERTIFICATION_CATALOG);
+    for (let i = 0; i < keys.length; i++) {
+      const item = CERTIFICATION_CATALOG[keys[i]];
+      await this.catalogAccess.upsert({
+        key: item.key,
+        label: item.label,
+        badgeIcon: item.badgeIcon,
+        sortOrder: i,
+      });
+    }
+  }
+
+  /** UC-02 · Catálogo finito de tipos de certificación (para la webapp). */
+  listCertificationCatalog(): Promise<CertificationCatalog[]> {
+    return this.catalogAccess.list();
+  }
+
+  /**
+   * KER-52 · Construye una certificación a partir de la entrada validada. Nace `pending`/no
+   * verificada y oculta al público (UC-02). Valida (defensa) que el tipo pertenezca al catálogo.
+   */
+  private buildCertification(
+    input: { catalogKey: string; institution: string; year: number; documentKey: string; documentContentType: string },
+    operationId?: string,
+  ): Certification {
+    if (!isCertificationCatalogKey(input.catalogKey)) {
+      throw new BadRequestException(`Tipo de certificación fuera del catálogo: ${input.catalogKey}`);
+    }
+    return {
+      id: randomUUID(),
+      catalogKey: input.catalogKey,
+      institution: input.institution,
+      year: input.year,
+      documentKey: input.documentKey,
+      documentContentType: input.documentContentType,
+      status: 'pending',
+      verified: false,
+      operationId,
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectionReason: null,
+    };
+  }
+
+  /** La insignia agregada `certificaciones` es DERIVADA (UC-19): true si hay ≥1 cert aprobada. */
+  private deriveCertificationsBadge(certs: Certification[]): boolean {
+    return certs.some((c) => c.status === 'approved');
+  }
+
+  /**
+   * KER-52 (UC-02) · Sube el documento PRIVADO de una certificación (PDF/imagen) al store no público
+   * y devuelve su `documentKey` opaca (NUNCA una URL pública). La subida queda auditada.
+   */
+  async uploadDocument(
+    buffer: Buffer,
+    mimeType: string,
+    accountId: string,
+  ): Promise<{ documentKey: string; contentType: string }> {
+    const { key, contentType } = await this.files.putDocument(buffer, mimeType);
+    await this.audit.record({
+      action: 'membership.caregiver.certification-document-uploaded',
+      actor: accountId,
+      metadata: { contentType },
+    });
+    return { documentKey: key, contentType };
+  }
+
+  /**
+   * KER-52 (UC-02 A4) · Agrega una certificación nueva (aditiva): nace `pending`/oculta y entra a la
+   * cola del admin (UC-19), sin tocar las credenciales ya aprobadas ni el estado de la cuenta.
+   * Idempotente por operationId (NFR-34).
+   */
+  async addCertification(dto: AddCertificationDto, accountId: string): Promise<Caregiver> {
+    const existing = await this.caregiverAccess.findByAccountId(accountId);
+    if (!existing) throw new NotFoundException('No tenés un perfil de cuidador');
+    if (existing.status === 'deactivated') {
+      throw new BadRequestException('Un perfil desactivado no puede agregar certificaciones');
+    }
+    const cert = this.buildCertification(dto, dto.operationId);
+    await this.caregiverAccess.addCertification(existing.id, cert, dto.operationId);
+    await this.audit.record({
+      action: 'membership.caregiver.certification-added',
+      actor: accountId,
+      target: { type: 'caregiver', id: existing.id },
+      metadata: { catalogKey: dto.catalogKey },
+    });
+    return (await this.caregiverAccess.findByAccountId(accountId))!;
+  }
+
+  /**
+   * KER-52 (UC-19) · Descarga el documento privado de una certificación. Solo admin (el controller
+   * gatea con RolesGuard); cada acceso queda auditado. Nunca expone URL pública.
+   */
+  async getCertificationDocument(
+    caregiverId: string,
+    certId: string,
+    adminId: string,
+  ): Promise<{ body: Buffer; contentType: string; filename: string }> {
+    const caregiver = await this.requireCaregiver(caregiverId);
+    const cert = (caregiver.certifications ?? []).find((c) => c.id === certId);
+    if (!cert || !cert.documentKey) throw new NotFoundException('Documento de certificación no encontrado');
+    const { body, contentType } = await this.files.getPrivateDocument(cert.documentKey);
+    await this.audit.record({
+      action: 'membership.caregiver.certification-document-downloaded',
+      actor: adminId,
+      target: { type: 'caregiver', id: caregiverId },
+      metadata: { certId, catalogKey: cert.catalogKey },
+    });
+    const ext = contentType.split('/')[1]?.split('+')[0] ?? 'bin';
+    return { body, contentType, filename: `certificacion-${cert.catalogKey}.${ext}` };
+  }
+
+  /**
+   * KER-52 (UC-19) · Aprueba una certificación puntual: queda verificada y su insignia se muestra al
+   * público; recalcula la insignia agregada `certificaciones` (≥1 aprobada). Atómico: certs + badges.
+   */
+  async approveCertification(caregiverId: string, certId: string, adminId: string): Promise<Caregiver> {
+    return this.reviewCertification(caregiverId, certId, adminId, 'approved', null);
+  }
+
+  /**
+   * KER-52 (UC-19 A2) · Rechaza una certificación puntual (con motivo): queda oculta al público, sin
+   * afectar a las demás ni al estado de la cuenta. Inmutable tras el rechazo (§7).
+   */
+  async rejectCertification(
+    caregiverId: string,
+    certId: string,
+    adminId: string,
+    reason: string,
+  ): Promise<Caregiver> {
+    return this.reviewCertification(caregiverId, certId, adminId, 'rejected', reason);
+  }
+
+  private async reviewCertification(
+    caregiverId: string,
+    certId: string,
+    adminId: string,
+    decision: 'approved' | 'rejected',
+    reason: string | null,
+  ): Promise<Caregiver> {
+    const caregiver = await this.requireCaregiver(caregiverId);
+    const certs = [...(caregiver.certifications ?? [])];
+    const idx = certs.findIndex((c) => c.id === certId);
+    if (idx < 0) throw new NotFoundException('Certificación no encontrada');
+    const current = certs[idx];
+    if (current.status !== 'pending') {
+      throw new BadRequestException('Solo una certificación pendiente puede aprobarse o rechazarse');
+    }
+    certs[idx] = {
+      ...current,
+      status: decision,
+      verified: decision === 'approved',
+      reviewedBy: adminId,
+      reviewedAt: new Date().toISOString(),
+      rejectionReason: reason,
+    };
+    const badges = {
+      certifications: this.deriveCertificationsBadge(certs), // insignia agregada derivada (UC-19)
+      identity: caregiver.badges?.identity ?? false,
+      background: caregiver.badges?.background ?? false,
+    };
+    await this.tx.run(async (em) => {
+      await this.caregiverAccess.setCertifications(caregiverId, certs, em);
+      await this.caregiverAccess.setBadges(caregiverId, badges, em);
+      await this.audit.record({
+        action: decision === 'approved'
+          ? 'membership.caregiver.certification-approved'
+          : 'membership.caregiver.certification-rejected',
+        actor: adminId,
+        target: { type: 'caregiver', id: caregiverId },
+        metadata: { certId, catalogKey: current.catalogKey, reason },
+        manager: em,
+      });
+    });
+    return this.requireCaregiver(caregiverId);
   }
 
   private async requireCaregiver(id: string): Promise<Caregiver> {

@@ -3,10 +3,10 @@ import {
   AvailabilitySlot,
   Caregiver,
   CaregiverStatus,
-  Certification,
   Rates,
   VerificationBadges,
 } from '../../resource-access/entities/caregiver.entity';
+import { CertificationView, ownerCertifications } from './certification-view.dto';
 
 /**
  * Respuesta de un perfil de cuidador (UC-02 / UC-19). Incluye la ficha completa
@@ -23,8 +23,8 @@ export class CaregiverResponseDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   photoUrl?: string | null;
 
-  @ApiProperty({ type: Object, isArray: true })
-  certifications!: Certification[];
+  @ApiProperty({ type: [CertificationView], description: 'Vista dueño: todas las certificaciones con su estado (sin la key privada del documento)' })
+  certifications!: CertificationView[];
 
   @ApiProperty({ type: Object, isArray: true })
   availability!: AvailabilitySlot[];
@@ -55,7 +55,7 @@ export class CaregiverResponseDto {
       id: c.id,
       displayName: c.displayName,
       photoUrl: c.photoUrl,
-      certifications: c.certifications,
+      certifications: ownerCertifications(c.certifications),
       availability: c.availability,
       rates: c.rates,
       status: c.status,

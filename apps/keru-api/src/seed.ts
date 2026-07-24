@@ -66,6 +66,12 @@ function avatarPng(bg: [number, number, number]): Buffer {
   ]);
 }
 
+/** KER-52 · PDF mínimo válido usado como documento placeholder de las certificaciones de la demo. */
+const SEED_CERT_PDF = Buffer.from(
+  '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n',
+  'latin1',
+);
+
 // --- Datos de demo ---
 
 /** Fecha relativa a hoy (días negativos = pasado) a hora local fija. */
@@ -94,7 +100,7 @@ interface SeedCaregiver {
   modalities: string[];
   ratePerHour: number;
   rateDescription?: string;
-  certifications: Array<{ type: string; institution: string; year: number }>;
+  certifications: Array<{ catalogKey: string; institution: string; year: number }>;
   availability: Array<{ dayOfWeek: number; from: string; to: string }>;
   badges?: Partial<Caregiver['badges']>;
   /** Con color se sube un avatar a S3 (floci en dev); sin color, el perfil queda sin foto. */
@@ -111,7 +117,7 @@ const CAREGIVERS: SeedCaregiver[] = [
     modalities: ['home'],
     ratePerHour: 3500,
     rateDescription: 'Incluye acompañamiento nocturno',
-    certifications: [{ type: 'Auxiliar de Enfermería', institution: 'Cruz Roja Argentina', year: 2016 }],
+    certifications: [{ catalogKey: 'nursing-assistant', institution: 'Cruz Roja Argentina', year: 2016 }],
     availability: slots(1, 5, '08:00', '16:00'),
     badges: { certifications: true, identity: true, background: true },
     photoColor: [139, 92, 246],
@@ -124,7 +130,7 @@ const CAREGIVERS: SeedCaregiver[] = [
     specialties: ['elder-care', 'chronic-illness'],
     modalities: ['home', 'hospital'],
     ratePerHour: 4200,
-    certifications: [{ type: 'Enfermería', institution: 'Universidad de Buenos Aires', year: 2012 }],
+    certifications: [{ catalogKey: 'nursing-degree', institution: 'Universidad de Buenos Aires', year: 2012 }],
     availability: slots(1, 6, '07:00', '15:00'),
     badges: { certifications: true, identity: true },
     photoColor: [236, 72, 153],
@@ -139,8 +145,8 @@ const CAREGIVERS: SeedCaregiver[] = [
     ratePerHour: 5000,
     rateDescription: 'Sesiones de rehabilitación de 2 horas mínimo',
     certifications: [
-      { type: 'Kinesiología', institution: 'Universidad Nacional de La Plata', year: 2010 },
-      { type: 'RCP y primeros auxilios', institution: 'SAME', year: 2021 },
+      { catalogKey: 'physical-therapy', institution: 'Universidad Nacional de La Plata', year: 2010 },
+      { catalogKey: 'cpr', institution: 'SAME', year: 2021 },
     ],
     availability: slots(1, 5, '09:00', '18:00'),
     badges: { certifications: true, identity: true, background: true },
@@ -155,8 +161,8 @@ const CAREGIVERS: SeedCaregiver[] = [
     ratePerHour: 6500,
     rateDescription: 'Cuidados paliativos domiciliarios',
     certifications: [
-      { type: 'Enfermería', institution: 'Universidad Austral', year: 2008 },
-      { type: 'Cuidados paliativos', institution: 'Pallium Latinoamérica', year: 2018 },
+      { catalogKey: 'nursing-degree', institution: 'Universidad Austral', year: 2008 },
+      { catalogKey: 'palliative-care', institution: 'Pallium Latinoamérica', year: 2018 },
     ],
     availability: slots(0, 6, '08:00', '20:00'),
     badges: { certifications: true, identity: true, background: true },
@@ -170,7 +176,7 @@ const CAREGIVERS: SeedCaregiver[] = [
     specialties: ['disability', 'companionship'],
     modalities: ['home'],
     ratePerHour: 2800,
-    certifications: [{ type: 'Acompañante terapéutico', institution: 'Universidad Nacional de La Plata', year: 2019 }],
+    certifications: [{ catalogKey: 'therapeutic-companion', institution: 'Universidad Nacional de La Plata', year: 2019 }],
     availability: slots(1, 5, '14:00', '22:00'),
     badges: { identity: true },
   },
@@ -183,8 +189,8 @@ const CAREGIVERS: SeedCaregiver[] = [
     modalities: ['home', 'hospital'],
     ratePerHour: 3900,
     certifications: [
-      { type: 'Auxiliar de Enfermería', institution: 'Cruz Roja Argentina', year: 2014 },
-      { type: 'Diabetes y nutrición', institution: 'Hospital Italiano', year: 2020 },
+      { catalogKey: 'nursing-assistant', institution: 'Cruz Roja Argentina', year: 2014 },
+      { catalogKey: 'diabetes-nutrition', institution: 'Hospital Italiano', year: 2020 },
     ],
     availability: slots(2, 6, '08:00', '17:00'),
     badges: { certifications: true, identity: true },
@@ -198,7 +204,7 @@ const CAREGIVERS: SeedCaregiver[] = [
     specialties: ['pediatric', 'post-surgical'],
     modalities: ['hospital'],
     ratePerHour: 5500,
-    certifications: [{ type: 'Enfermería pediátrica', institution: 'Hospital Garrahan', year: 2015 }],
+    certifications: [{ catalogKey: 'pediatric-nursing', institution: 'Hospital Garrahan', year: 2015 }],
     availability: slots(4, 6, '10:00', '22:00'),
     badges: { certifications: true, identity: true, background: true },
   },
@@ -210,7 +216,7 @@ const CAREGIVERS: SeedCaregiver[] = [
     specialties: ['elder-care', 'palliative', 'companionship'],
     modalities: ['home'],
     ratePerHour: 4700,
-    certifications: [{ type: 'Gerontología', institution: 'Universidad Maimónides', year: 2017 }],
+    certifications: [{ catalogKey: 'geriatric-care', institution: 'Universidad Maimónides', year: 2017 }],
     availability: slots(1, 6, '08:00', '14:00'),
     badges: { identity: true, background: true },
     photoColor: [59, 130, 246],
@@ -299,13 +305,31 @@ async function seed() {
           logger.warn(`Sin foto para ${data.displayName} (S3 no disponible): ${(err as Error).message}`);
         }
       }
+      // KER-52: cada certificación lleva su documento privado. Subimos un PDF placeholder por cert;
+      // si S3 no está, usamos una key sintética (la descarga admin daría 404, aceptable en dev).
+      const certifications: Array<{
+        catalogKey: string;
+        institution: string;
+        year: number;
+        documentKey: string;
+        documentContentType: string;
+      }> = [];
+      for (const c of data.certifications) {
+        let documentKey = `private/documents/seed-${data.operationId}-${c.catalogKey}.pdf`;
+        try {
+          documentKey = (await files.putDocument(SEED_CERT_PDF, 'application/pdf')).key;
+        } catch (err) {
+          logger.warn(`Sin documento para cert ${c.catalogKey} (S3 no disponible): ${(err as Error).message}`);
+        }
+        certifications.push({ ...c, documentKey, documentContentType: 'application/pdf' });
+      }
       profile = await membership.registerCaregiver(
         {
           operationId: data.operationId,
           displayName: data.displayName,
           photoUrl,
           specialties: data.specialties,
-          certifications: data.certifications,
+          certifications,
           availability: data.availability,
           rates: { ratePerHour: data.ratePerHour, currency: 'ARS', description: data.rateDescription },
           zone: data.zone,
@@ -317,8 +341,21 @@ async function seed() {
     if (profile.status === 'pending') {
       profile = await membership.approveCaregiver(profile.id, admin.id);
     }
-    // También completa insignias de un perfil pre-existente (p.ej. creado por e2e); solo si difieren.
-    const badges = data.badges ?? {};
+    // KER-52: la insignia agregada `certificaciones` es DERIVADA — aprobamos las certs pendientes de
+    // los cuidadores que la demo marca como verificados (para que se muestren con su insignia).
+    if (profile.status === 'approved' && data.badges?.certifications) {
+      const detail = await membership.getCaregiverById(profile.id);
+      for (const cert of detail.certifications ?? []) {
+        if (cert.status === 'pending') {
+          await membership.approveCertification(profile.id, cert.id, admin.id);
+        }
+      }
+      profile = await membership.getCaregiverById(profile.id);
+    }
+    // Insignias independientes (identidad/antecedentes); `certifications` queda derivada, no se setea acá.
+    const badges: Partial<Caregiver['badges']> = {};
+    if (data.badges?.identity !== undefined) badges.identity = data.badges.identity;
+    if (data.badges?.background !== undefined) badges.background = data.badges.background;
     if (
       profile.status === 'approved' &&
       (Object.keys(badges) as Array<keyof Caregiver['badges']>).some((k) => profile!.badges?.[k] !== badges[k])

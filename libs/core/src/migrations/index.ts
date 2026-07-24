@@ -17,6 +17,7 @@ import { AccountPhotoUrl1784840000000 } from './1784840000000-AccountPhotoUrl';
 import { PasswordResetToken1784850000000 } from './1784850000000-PasswordResetToken';
 import { EmailVerification1784860000000 } from './1784860000000-EmailVerification';
 import { CaregiverIdentityFromAccount1784870000000 } from './1784870000000-CaregiverIdentityFromAccount';
+import { CertificationCatalog1784880000000 } from './1784880000000-CertificationCatalog';
 
 export const ALL_MIGRATIONS: Array<new () => unknown> = [
   InitialSchema1784783279894,
@@ -30,4 +31,5 @@ export const ALL_MIGRATIONS: Array<new () => unknown> = [
   PasswordResetToken1784850000000,
   EmailVerification1784860000000,
   CaregiverIdentityFromAccount1784870000000,
+  CertificationCatalog1784880000000,
 ];

@@ -1,5 +1,17 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiHeader, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
+import type { Response } from 'express';
+import { ApiBearerAuth, ApiHeader, ApiOkResponse, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard, STEP_UP_HEADER, StepUpGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
@@ -10,6 +22,7 @@ import {
   RejectCaregiverDto,
   SetBadgesDto,
 } from './manager/dto/admin-caregiver.dto';
+import { RejectCertificationDto } from './manager/dto/certification-io.dto';
 import { CaregiverStatus } from './resource-access/entities/caregiver.entity';
 
 /** UC-19 · Back-office: aprobación y verificación de cuidadores. Requiere rol `admin`. */
@@ -77,6 +90,63 @@ export class AdminCaregiverController {
   ): Promise<CaregiverResponseDto> {
     return CaregiverResponseDto.from(
       await this.membership.rejectCaregiver(id, admin.accountId, dto.reason),
+    );
+  }
+
+  @Get(':id/certifications/:certId/document')
+  @ApiProduces('application/pdf', 'image/jpeg', 'image/png', 'image/webp')
+  @ApiOperation({
+    summary: 'KER-52 (UC-19) · Descargar el documento privado de una certificación (SOLO admin, auditado)',
+    description: 'El binario del certificado escaneado. Solo rol admin (otros → 403); nunca hay URL pública; cada descarga se audita.',
+  })
+  async certificationDocument(
+    @Param('id') id: string,
+    @Param('certId') certId: string,
+    @CurrentAccount() admin: AuthPrincipal,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { body, contentType, filename } = await this.membership.getCertificationDocument(
+      id,
+      certId,
+      admin.accountId,
+    );
+    res.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(body);
+  }
+
+  @Post(':id/certifications/:certId/approve')
+  @UseGuards(StepUpGuard) // NFR-33 (KER-38): decisión sensible
+  @ApiHeader({ name: STEP_UP_HEADER, required: true, description: 'Token corto de re-confirmación (POST /auth/step-up)' })
+  @ApiOperation({
+    summary: 'KER-52 (UC-19) · Aprobar una certificación (se muestra con su insignia). Exige step-up',
+  })
+  @ApiOkResponse({ type: CaregiverDetailDto })
+  async approveCertification(
+    @Param('id') id: string,
+    @Param('certId') certId: string,
+    @CurrentAccount() admin: AuthPrincipal,
+  ): Promise<CaregiverDetailDto> {
+    return CaregiverDetailDto.from(
+      await this.membership.approveCertification(id, certId, admin.accountId),
+    );
+  }
+
+  @Post(':id/certifications/:certId/reject')
+  @UseGuards(StepUpGuard) // NFR-33 (KER-38)
+  @ApiHeader({ name: STEP_UP_HEADER, required: true, description: 'Token corto de re-confirmación (POST /auth/step-up)' })
+  @ApiOperation({ summary: 'KER-52 (UC-19 A2) · Rechazar una certificación (con motivo). Exige step-up' })
+  @ApiOkResponse({ type: CaregiverDetailDto })
+  async rejectCertification(
+    @Param('id') id: string,
+    @Param('certId') certId: string,
+    @Body() dto: RejectCertificationDto,
+    @CurrentAccount() admin: AuthPrincipal,
+  ): Promise<CaregiverDetailDto> {
+    return CaregiverDetailDto.from(
+      await this.membership.rejectCertification(id, certId, admin.accountId, dto.reason),
     );
   }
 

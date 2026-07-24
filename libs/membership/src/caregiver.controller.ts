@@ -5,6 +5,7 @@ import { MembershipManager } from './manager/membership.manager';
 import { RegisterCaregiverDto } from './manager/dto/register-caregiver.dto';
 import { UpdateCaregiverProfileDto } from './manager/dto/update-caregiver-profile.dto';
 import { CaregiverResponseDto } from './manager/dto/caregiver-response.dto';
+import { AddCertificationDto, CertificationCatalogItemDto } from './manager/dto/certification-io.dto';
 
 /** UC-02 · Perfil profesional del cuidador. Requiere cuenta con rol `caregiver`. */
 @ApiTags('Caregivers')
@@ -64,5 +65,27 @@ export class CaregiverController {
     const caregiver = await this.membership.getMyCaregiverProfile(account.accountId);
     if (!caregiver) throw new NotFoundException('Todavía no creaste tu perfil de cuidador');
     return CaregiverResponseDto.from(caregiver);
+  }
+
+  @Get('certification-catalog')
+  @ApiOperation({ summary: 'KER-52 · Catálogo finito de tipos de certificación (con su insignia)' })
+  @ApiOkResponse({ type: CertificationCatalogItemDto, isArray: true })
+  async certificationCatalog(): Promise<CertificationCatalogItemDto[]> {
+    const items = await this.membership.listCertificationCatalog();
+    return items.map((i) => ({ key: i.key, label: i.label, badgeIcon: i.badgeIcon }));
+  }
+
+  @Post('me/certifications')
+  @ApiOperation({
+    summary: 'KER-52 (UC-02 A4) · Agregar una certificación del catálogo (con su documento privado)',
+    description:
+      'Aditiva: la certificación nueva nace pendiente y oculta, y entra a la cola de revisión del admin (UC-19). No toca las credenciales aprobadas. Idempotente por operationId (NFR-34).',
+  })
+  @ApiCreatedResponse({ type: CaregiverResponseDto })
+  async addCertification(
+    @Body() dto: AddCertificationDto,
+    @CurrentAccount() account: AuthPrincipal,
+  ): Promise<CaregiverResponseDto> {
+    return CaregiverResponseDto.from(await this.membership.addCertification(dto, account.accountId));
   }
 }

@@ -37,7 +37,15 @@ const resubmitDto = (): RegisterCaregiverDto =>
     operationId: 'op-resubmit-1',
     displayName: 'Laura Gómez',
     specialties: ['elder-care'],
-    certifications: [{ type: 'Enfermería', institution: 'UBA', year: 2015 }],
+    certifications: [
+      {
+        catalogKey: 'nursing-degree',
+        institution: 'UBA',
+        year: 2015,
+        documentKey: 'private/documents/x.pdf',
+        documentContentType: 'application/pdf',
+      },
+    ],
     availability: [{ dayOfWeek: 1, from: '08:00', to: '16:00' }],
     rates: { ratePerHour: 3500 },
     zone: 'Palermo, CABA',
@@ -77,6 +85,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
       findByAccountId: jest.fn().mockResolvedValue(rejectedCaregiver()),
       resubmitProfile: jest.fn().mockResolvedValue(undefined),
     },
+    catalogAccess: { list: jest.fn().mockResolvedValue([]) },
     jwt: {},
     pubsub: {},
     audit: { record: jest.fn() },
@@ -91,6 +100,7 @@ function makeManager(overrides: Record<string, unknown> = {}) {
     deps.tx as never,
     deps.accountAccess as never,
     deps.caregiverAccess as never,
+    deps.catalogAccess as never,
     deps.jwt as never,
     deps.pubsub as never,
     deps.audit as never,
@@ -416,7 +426,10 @@ describe('UC-02 A2 · re-postulación del cuidador rechazado', () => {
     expect(caregiverAccess.resubmitProfile).toHaveBeenCalledWith(
       'cg-1',
       expect.objectContaining({
-        certifications: [{ type: 'Enfermería', institution: 'UBA', year: 2015, verified: false }],
+        // KER-52: cada cert se reconstruye pending/no-verificada, con su catalogKey y documento.
+        certifications: [
+          expect.objectContaining({ catalogKey: 'nursing-degree', status: 'pending', verified: false }),
+        ],
       }),
     );
     expect((deps.audit as { record: jest.Mock }).record).toHaveBeenCalledWith(

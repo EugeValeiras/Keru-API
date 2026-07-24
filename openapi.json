@@ -710,6 +710,74 @@
         ]
       }
     },
+    "/api/v1/caregivers/certification-catalog": {
+      "get": {
+        "operationId": "CaregiverController_certificationCatalog_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CertificationCatalogItemDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "KER-52 · Catálogo finito de tipos de certificación (con su insignia)",
+        "tags": [
+          "Caregivers"
+        ]
+      }
+    },
+    "/api/v1/caregivers/me/certifications": {
+      "post": {
+        "description": "Aditiva: la certificación nueva nace pendiente y oculta, y entra a la cola de revisión del admin (UC-19). No toca las credenciales aprobadas. Idempotente por operationId (NFR-34).",
+        "operationId": "CaregiverController_addCertification_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCertificationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "KER-52 (UC-02 A4) · Agregar una certificación del catálogo (con su documento privado)",
+        "tags": [
+          "Caregivers"
+        ]
+      }
+    },
     "/api/v1/admin/caregivers/pending": {
       "get": {
         "operationId": "AdminCaregiverController_pending_v1",
@@ -931,6 +999,160 @@
           }
         ],
         "summary": "UC-19 · Rechazar cuenta (con motivo). Exige step-up (NFR-33)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/certifications/{certId}/document": {
+      "get": {
+        "description": "El binario del certificado escaneado. Solo rol admin (otros → 403); nunca hay URL pública; cada descarga se audita.",
+        "operationId": "AdminCaregiverController_certificationDocument_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "certId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "KER-52 (UC-19) · Descargar el documento privado de una certificación (SOLO admin, auditado)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/certifications/{certId}/approve": {
+      "post": {
+        "operationId": "AdminCaregiverController_approveCertification_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "certId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-step-up-token",
+            "in": "header",
+            "description": "Token corto de re-confirmación (POST /auth/step-up)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "KER-52 (UC-19) · Aprobar una certificación (se muestra con su insignia). Exige step-up",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/certifications/{certId}/reject": {
+      "post": {
+        "operationId": "AdminCaregiverController_rejectCertification_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "certId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-step-up-token",
+            "in": "header",
+            "description": "Token corto de re-confirmación (POST /auth/step-up)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectCertificationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "KER-52 (UC-19 A2) · Rechazar una certificación (con motivo). Exige step-up",
         "tags": [
           "Back-office"
         ]
@@ -1284,6 +1506,52 @@
           }
         ],
         "summary": "Subir imagen de perfil (jpeg/png/webp, máx 5MB) → URL pública",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/v1/files/documents": {
+      "post": {
+        "operationId": "FilesController_uploadDocument_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedDocumentDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "KER-52 · Subir documento PRIVADO de certificación (PDF/imagen, máx 10MB) → documentKey (NO URL pública)",
         "tags": [
           "Files"
         ]
@@ -3654,9 +3922,22 @@
       "CertificationDto": {
         "type": "object",
         "properties": {
-          "type": {
+          "catalogKey": {
             "type": "string",
-            "example": "Enfermería"
+            "enum": [
+              "nursing-degree",
+              "nursing-assistant",
+              "cpr",
+              "first-aid",
+              "geriatric-care",
+              "palliative-care",
+              "dementia-care",
+              "physical-therapy",
+              "therapeutic-companion",
+              "pediatric-nursing",
+              "diabetes-nutrition"
+            ],
+            "example": "nursing-degree"
           },
           "institution": {
             "type": "string",
@@ -3665,12 +3946,23 @@
           "year": {
             "type": "number",
             "example": 2015
+          },
+          "documentKey": {
+            "type": "string",
+            "description": "Key del documento privado (de POST /files/documents). NO es una URL.",
+            "example": "private/documents/uuid.pdf"
+          },
+          "documentContentType": {
+            "type": "string",
+            "example": "application/pdf"
           }
         },
         "required": [
-          "type",
+          "catalogKey",
           "institution",
-          "year"
+          "year",
+          "documentKey",
+          "documentContentType"
         ]
       },
       "AvailabilityDto": {
@@ -3798,6 +4090,70 @@
           "modalities"
         ]
       },
+      "CertificationView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "catalogKey": {
+            "type": "string",
+            "example": "nursing-degree"
+          },
+          "label": {
+            "type": "string",
+            "description": "Nombre visible (catálogo)",
+            "example": "Título de Enfermería"
+          },
+          "badgeIcon": {
+            "type": "string",
+            "description": "Ícono de la insignia (catálogo)",
+            "example": "🩺"
+          },
+          "institution": {
+            "type": "string"
+          },
+          "year": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ]
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "true si status === approved (compat)"
+          },
+          "reviewedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "rejectionReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasDocument": {
+            "type": "boolean",
+            "description": "true si tiene documento privado adjunto (para la descarga admin)"
+          }
+        },
+        "required": [
+          "id",
+          "catalogKey",
+          "label",
+          "badgeIcon",
+          "institution",
+          "year",
+          "status",
+          "verified",
+          "hasDocument"
+        ]
+      },
       "CaregiverResponseDto": {
         "type": "object",
         "properties": {
@@ -3813,9 +4169,10 @@
             "nullable": true
           },
           "certifications": {
+            "description": "Vista dueño: todas las certificaciones con su estado (sin la key privada del documento)",
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/CertificationView"
             }
           },
           "availability": {
@@ -3916,6 +4273,80 @@
           "operationId"
         ]
       },
+      "CertificationCatalogItemDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "nursing-degree"
+          },
+          "label": {
+            "type": "string",
+            "example": "Título de Enfermería"
+          },
+          "badgeIcon": {
+            "type": "string",
+            "example": "🩺"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "badgeIcon"
+        ]
+      },
+      "AddCertificationDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "catalogKey": {
+            "type": "string",
+            "enum": [
+              "nursing-degree",
+              "nursing-assistant",
+              "cpr",
+              "first-aid",
+              "geriatric-care",
+              "palliative-care",
+              "dementia-care",
+              "physical-therapy",
+              "therapeutic-companion",
+              "pediatric-nursing",
+              "diabetes-nutrition"
+            ],
+            "example": "cpr"
+          },
+          "institution": {
+            "type": "string",
+            "example": "Cruz Roja Argentina"
+          },
+          "year": {
+            "type": "number",
+            "example": 2021
+          },
+          "documentKey": {
+            "type": "string",
+            "description": "Key del documento privado (de POST /files/documents).",
+            "example": "private/documents/uuid.pdf"
+          },
+          "documentContentType": {
+            "type": "string",
+            "example": "application/pdf"
+          }
+        },
+        "required": [
+          "operationId",
+          "catalogKey",
+          "institution",
+          "year",
+          "documentKey",
+          "documentContentType"
+        ]
+      },
       "CaregiverDetailDto": {
         "type": "object",
         "properties": {
@@ -3945,9 +4376,10 @@
             }
           },
           "certifications": {
+            "description": "Certificaciones con estado por-cert + hasDocument (para descargar/aprobar). Sin la key privada.",
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/CertificationView"
             }
           },
           "availability": {
@@ -4006,6 +4438,18 @@
           "reason": {
             "type": "string",
             "example": "Certificación de RCP ilegible"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "RejectCertificationDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "example": "El documento está ilegible"
           }
         },
         "required": [
@@ -4185,6 +4629,24 @@
           "url"
         ]
       },
+      "UploadedDocumentDto": {
+        "type": "object",
+        "properties": {
+          "documentKey": {
+            "type": "string",
+            "description": "Key privada del documento (usar como documentKey). NO es una URL pública.",
+            "example": "private/documents/uuid.pdf"
+          },
+          "contentType": {
+            "type": "string",
+            "example": "application/pdf"
+          }
+        },
+        "required": [
+          "documentKey",
+          "contentType"
+        ]
+      },
       "CaregiverCardDto": {
         "type": "object",
         "properties": {
@@ -4298,9 +4760,10 @@
             "description": "Cantidad de reseñas reveladas"
           },
           "certifications": {
+            "description": "KER-52: SOLO las certificaciones aprobadas, cada una con su insignia (catálogo). Las pendientes/rechazadas y la key privada del documento NO se exponen al público.",
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/CertificationView"
             }
           },
           "availability": {

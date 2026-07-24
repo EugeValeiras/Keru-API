@@ -114,12 +114,25 @@ export async function registerPatient(app: INestApplication, token: string): Pro
   return res.body.id;
 }
 
-export function caregiverProfileBody(operationId: string = uid('op-caregiver')) {
+export function caregiverProfileBody(
+  operationId: string = uid('op-caregiver'),
+  certOverrides: Partial<{ catalogKey: string; institution: string; year: number; documentKey: string; documentContentType: string }> = {},
+) {
   return {
     operationId,
     displayName: 'Laura Gómez',
     specialties: ['elder-care'],
-    certifications: [{ type: 'Enfermería', institution: 'UBA', year: 2015 }],
+    // KER-52: tipo del catálogo finito + documento privado adjunto (documentKey, no URL pública).
+    certifications: [
+      {
+        catalogKey: 'nursing-degree',
+        institution: 'UBA',
+        year: 2015,
+        documentKey: 'private/documents/e2e-placeholder.pdf',
+        documentContentType: 'application/pdf',
+        ...certOverrides,
+      },
+    ],
     availability: [{ dayOfWeek: 1, from: '08:00', to: '16:00' }],
     rates: { ratePerHour: 3500, currency: 'ARS' },
     zone: 'Palermo, CABA',

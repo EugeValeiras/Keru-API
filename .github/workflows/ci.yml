@@ -143,6 +143,22 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # Floci: emulador S3 (KER-52). El e2e sube/descarga el documento privado de una certificación
+      # (POST /files/documents) contra almacenamiento real — mismo emulador que docker-compose y
+      # verify-isolated. Sin él, el S3Client cae a la cadena default de credenciales (CredentialsProviderError).
+      floci:
+        image: floci/floci:latest
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+          SERVICES: ses,s3
+        ports:
+          - 4566:4566
+    # El e2e apunta el S3Client a floci; las credenciales estáticas ('local') las setea
+    # FileStorageUtility cuando AWS_ENDPOINT_URL está presente (floci las ignora).
+    env:
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_REGION: us-east-1
+      S3_BUCKET: keru-media
     steps:
       - uses: actions/checkout@v4
 
@@ -153,6 +169,14 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
+
+      - name: Esperar a floci (S3)
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null http://localhost:4566; then echo "floci up"; exit 0; fi
+            sleep 2
+          done
+          echo "floci no respondió en :4566" >&2; exit 1
 
       - name: Tests e2e (jest + supertest)
         run: npm run test:e2e
