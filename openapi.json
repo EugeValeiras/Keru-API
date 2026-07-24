@@ -4424,9 +4424,6 @@
             "type": "string",
             "format": "uuid"
           },
-          "accountId": {
-            "type": "string"
-          },
           "displayName": {
             "type": "string"
           },
@@ -4493,7 +4490,6 @@
         },
         "required": [
           "id",
-          "accountId",
           "displayName",
           "status",
           "specialties",
