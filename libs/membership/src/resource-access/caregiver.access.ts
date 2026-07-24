@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { ResourceAccess } from '@keru/core';
 import {
   AvailabilitySlot,
@@ -11,11 +11,10 @@ import {
   VerificationBadges,
 } from './entities/caregiver.entity';
 import { CaregiverRateVersion } from './entities/caregiver-rate-version.entity';
+import { Account } from './entities/account.entity';
 
 export interface CreateCaregiverInput {
   accountId: string;
-  displayName: string;
-  photoUrl?: string | null;
   specialties: string[];
   certifications: Certification[];
   availability: AvailabilitySlot[];
@@ -27,9 +26,11 @@ export interface CreateCaregiverInput {
 /** UC-02 A2 · Datos corregidos de la re-postulación (el perfil ya existe; la cuenta no cambia). */
 export type ResubmitCaregiverInput = Omit<CreateCaregiverInput, 'accountId'>;
 
-/** UC-02 A3 · Campos editables de un perfil aprobado (los que no requieren re-verificación). */
+/**
+ * UC-02 A3 · Campos editables de un perfil aprobado (los que no requieren re-verificación).
+ * La foto NO está acá (ADR-0003): la identidad vive en la `Account` (`PATCH /accounts/me`, UC-23).
+ */
 export interface UpdateApprovedProfileInput {
-  photoUrl?: string | null;
   availability?: AvailabilitySlot[];
   rates?: Rates;
   zone?: string;
@@ -48,12 +49,38 @@ export class CaregiverAccess {
     @InjectRepository(Caregiver) private readonly caregivers: Repository<Caregiver>,
     @InjectRepository(CaregiverRateVersion)
     private readonly rateVersions: Repository<CaregiverRateVersion>,
+    @InjectRepository(Account) private readonly accounts: Repository<Account>,
   ) {}
+
+  /**
+   * ADR-0003 · Resuelve la identidad (nombre/foto) del cuidador desde su `Account` por `accountId`
+   * (join intra-Membership) y la proyecta sobre el perfil, que NO tiene columnas de identidad. Así
+   * el marketplace/ficha muestran la misma identidad que el header. `displayName` cae a '' si la
+   * cuenta no existe (no debería: un perfil siempre nace de una cuenta).
+   */
+  private async withIdentity<T extends Caregiver | null>(caregiver: T): Promise<T> {
+    if (!caregiver) return caregiver;
+    const [enriched] = await this.withIdentityMany([caregiver]);
+    return enriched as T;
+  }
+
+  private async withIdentityMany(caregivers: Caregiver[]): Promise<Caregiver[]> {
+    if (caregivers.length === 0) return caregivers;
+    const accountIds = [...new Set(caregivers.map((c) => c.accountId))];
+    const accounts = await this.accounts.find({ where: { id: In(accountIds) } });
+    const byId = new Map(accounts.map((a) => [a.id, a]));
+    for (const c of caregivers) {
+      const account = byId.get(c.accountId);
+      c.displayName = account?.displayName ?? '';
+      c.photoUrl = account?.photoUrl ?? null;
+    }
+    return caregivers;
+  }
 
   /** UC-02. Idempotente por operationId; un perfil por cuenta. Las certificaciones nacen no verificadas. */
   async createProfile(input: CreateCaregiverInput, operationId: string): Promise<Caregiver> {
     const existing = await this.caregivers.findOne({ where: { createdByOperationId: operationId } });
-    if (existing) return existing;
+    if (existing) return this.withIdentity(existing);
 
     const caregiver = this.caregivers.create({
       ...input,
@@ -62,23 +89,28 @@ export class CaregiverAccess {
       badges: { certifications: false, identity: false, background: false },
       createdByOperationId: operationId,
     });
-    return this.caregivers.save(caregiver);
+    return this.withIdentity(await this.caregivers.save(caregiver));
   }
 
-  findById(id: string): Promise<Caregiver | null> {
-    return this.caregivers.findOne({ where: { id } });
+  async findById(id: string): Promise<Caregiver | null> {
+    return this.withIdentity(await this.caregivers.findOne({ where: { id } }));
   }
 
-  findByAccountId(accountId: string): Promise<Caregiver | null> {
-    return this.caregivers.findOne({ where: { accountId } });
+  async findByAccountId(accountId: string): Promise<Caregiver | null> {
+    return this.withIdentity(await this.caregivers.findOne({ where: { accountId } }));
   }
 
-  listByStatus(status: CaregiverStatus): Promise<Caregiver[]> {
-    return this.caregivers.find({ where: { status }, order: { createdAt: 'ASC' } });
+  async listByStatus(status: CaregiverStatus): Promise<Caregiver[]> {
+    return this.withIdentityMany(
+      await this.caregivers.find({ where: { status }, order: { createdAt: 'ASC' } }),
+    );
   }
 
-  /** Listado paginado con filtro por estado y búsqueda por nombre/zona (back-office). */
-  listPaged(
+  /**
+   * Listado paginado con filtro por estado y búsqueda por nombre/zona (back-office). El nombre vive
+   * en la `Account` (ADR-0003): se filtra por join intra-Membership con `account` por `accountId`.
+   */
+  async listPaged(
     status: CaregiverStatus | undefined,
     q: string | undefined,
     skip: number,
@@ -90,8 +122,14 @@ export class CaregiverAccess {
       .skip(skip)
       .take(take);
     if (status) qb.andWhere('c.status = :status', { status });
-    if (q) qb.andWhere('(c."displayName" ILIKE :q OR c.zone ILIKE :q)', { q: `%${q}%` });
-    return qb.getManyAndCount();
+    if (q) {
+      qb.andWhere(
+        '(c.zone ILIKE :q OR EXISTS (SELECT 1 FROM "account" a WHERE a.id = c."accountId" AND a."displayName" ILIKE :q))',
+        { q: `%${q}%` },
+      );
+    }
+    const [rows, count] = await qb.getManyAndCount();
+    return [await this.withIdentityMany(rows), count];
   }
 
   /** Conteo de cuidadores por estado (dashboard). */
@@ -166,9 +204,8 @@ export class CaregiverAccess {
   }
 
   async resubmitProfile(caregiverId: string, input: ResubmitCaregiverInput): Promise<void> {
+    // Identidad (nombre/foto) no vive acá (ADR-0003): se gestiona por la cuenta (UC-23).
     await this.caregivers.update(caregiverId, {
-      displayName: input.displayName,
-      photoUrl: input.photoUrl ?? null,
       specialties: input.specialties,
       certifications: input.certifications.map((c) => ({ ...c, verified: false })),
       availability: input.availability,
