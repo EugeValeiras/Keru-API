@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MembershipManager } from './membership.manager';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { RegisterCaregiverDto } from './dto/register-caregiver.dto';
