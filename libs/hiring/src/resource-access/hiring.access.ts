@@ -198,6 +198,45 @@ export class HiringAccess {
     return result.raw as HiringRequest[];
   }
 
+  /**
+   * KER-58 (UC-09 A5, NFR-14) · Servicios que entraron en ventana: `accepted` + `startDate <= now`
+   * y aún no vencidos (`endDate > now`) -> `in-progress`. Transición naturalmente idempotente por la
+   * precondición de estado (naturalmente idempotente, sin operationId — NFR-34/ADR-0002); claim
+   * `UPDATE...RETURNING` para at-most-once multi-instancia. Devuelve SOLO las que reclamó.
+   */
+  async claimStartedRequests(now: Date): Promise<HiringRequest[]> {
+    const result = await this.requests
+      .createQueryBuilder()
+      .update(HiringRequest)
+      .set({ status: 'in-progress' })
+      .where('status = :accepted', { accepted: 'accepted' })
+      .andWhere('"startDate" <= :now', { now })
+      .andWhere('"endDate" > :now', { now })
+      .returning('*')
+      .execute();
+    return result.raw as HiringRequest[];
+  }
+
+  /**
+   * KER-58 (UC-09 A5, NFR-14) · Servicios cuya ventana terminó: `accepted`/`in-progress` +
+   * `endDate < now` -> `completed` con razón terminal `completed` (cierre normal por cumplimiento
+   * del período, Decouple row 49). La precondición SQL de estado **excluye** los ya cerrados por
+   * cancelación/no-show (KER-31/32) — no reescribe su razón — y hace la transición naturalmente
+   * idempotente (NFR-34). Claim `UPDATE...RETURNING` para at-most-once multi-instancia. Devuelve SOLO
+   * las que reclamó.
+   */
+  async claimEndedRequests(now: Date): Promise<HiringRequest[]> {
+    const result = await this.requests
+      .createQueryBuilder()
+      .update(HiringRequest)
+      .set({ status: 'completed', terminalReason: 'completed', decidedAt: now })
+      .where('status IN (:...active)', { active: ['accepted', 'in-progress'] })
+      .andWhere('"endDate" < :now', { now })
+      .returning('*')
+      .execute();
+    return result.raw as HiringRequest[];
+  }
+
   /** Solicitudes pendientes vencidas: pending + startDate < now -> expired. Devuelve las reclamadas. */
   async claimExpiredPendingRequests(now: Date): Promise<HiringRequest[]> {
     const result = await this.requests

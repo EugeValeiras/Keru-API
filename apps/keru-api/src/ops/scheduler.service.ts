@@ -31,9 +31,15 @@ export class SchedulerService {
   async sweep(): Promise<void> {
     const lifecycle = await this.hiring.sweepLifecycle();
     const reviews = await this.reputation.sweepReviewWindows();
-    if (lifecycle.assignmentsClosed || lifecycle.requestsExpired || reviews.revealed) {
+    if (
+      lifecycle.assignmentsClosed ||
+      lifecycle.requestsExpired ||
+      lifecycle.requestsCompleted ||
+      lifecycle.requestsStarted ||
+      reviews.revealed
+    ) {
       this.logger.log(
-        `Barrido: ${lifecycle.assignmentsClosed} asignaciones cerradas, ${lifecycle.requestsExpired} solicitudes expiradas, ${reviews.revealed} reseñas reveladas`,
+        `Barrido: ${lifecycle.assignmentsClosed} asignaciones cerradas, ${lifecycle.requestsCompleted} servicios completados, ${lifecycle.requestsStarted} en curso, ${lifecycle.requestsExpired} solicitudes expiradas, ${reviews.revealed} reseñas reveladas`,
       );
     }
   }
