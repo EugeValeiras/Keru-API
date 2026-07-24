@@ -2,9 +2,13 @@ import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AccountRole } from '@keru/core';
 
-const SIGNUP_ROLES: AccountRole[] = ['patient', 'family', 'caregiver'];
+// UC-04 (KER-50): el self-signup ofrece solo `family` (administra perfiles de paciente) y
+// `caregiver` (profesional del marketplace). `admin` es interno; `patient` salió del signup —
+// administrar pacientes es capacidad de `family` (§2.8) y el login-de-paciente con identidad
+// compartida sigue diferido (ADR-0003 §7). `AccountRole` conserva 'patient' para ese futuro.
+const SIGNUP_ROLES: AccountRole[] = ['family', 'caregiver'];
 
-/** UC-04 · Alta de cuenta. El rol admin no se auto-registra. */
+/** UC-04 · Alta de cuenta. El rol admin no se auto-registra; `patient` salió del signup (KER-50). */
 export class SignupDto {
   @ApiProperty({ example: 'familiar@test.com' })
   @IsEmail()

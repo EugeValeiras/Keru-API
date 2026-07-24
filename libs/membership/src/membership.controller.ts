@@ -6,7 +6,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
+import { AuthPrincipal, CurrentAccount, JwtAuthGuard, Roles, RolesGuard } from '@keru/core';
 import { MembershipManager } from './manager/membership.manager';
 import { RegisterPatientDto } from './manager/dto/register-patient.dto';
 import { UpdatePatientDto } from './manager/dto/update-patient.dto';
@@ -18,17 +18,25 @@ import { PatientLinkDto, PatientRecordDto, PatientResponseDto } from './manager/
  */
 @ApiTags('Membership')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller()
 export class MembershipController {
   constructor(private readonly membership: MembershipManager) {}
 
-  /** UC-01 · Registrar paciente. */
+  /**
+   * UC-01 · Registrar paciente. Requiere rol de cuenta `family` (KER-50): administrar perfiles
+   * de paciente es capacidad de `family` (constitution §2.8); caregiver/admin → 403. Es uno de
+   * los dos puntos donde una cuenta gana un vínculo con un paciente (el otro es aceptar una
+   * invitación, UC-03) — gatearlos por rol mantiene el invariante "solo family tiene vínculo".
+   * El chequeo de rol lo hace RolesGuard (patrón UC-19/KER-38), no el Manager inline (§3.7).
+   */
   @Post('patients')
+  @Roles('family')
   @ApiOperation({
-    summary: 'UC-01 · Registrar paciente',
+    summary: 'UC-01 · Registrar paciente (solo rol family)',
     description:
-      'Crea el perfil del paciente y vincula al creador como consent-holder. Idempotente por operationId (NFR-34).',
+      'Crea el perfil del paciente y vincula al creador como consent-holder. Idempotente por operationId (NFR-34). ' +
+      'Requiere rol de cuenta `family` (KER-50): caregiver/admin → 403.',
   })
   @ApiCreatedResponse({ type: PatientResponseDto })
   async registerPatient(
