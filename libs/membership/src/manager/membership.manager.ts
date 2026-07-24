@@ -38,6 +38,7 @@ import { UpdateCaregiverProfileDto } from './dto/update-caregiver-profile.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import {
   AuthResponseDto,
+  EmailVerificationConfirmDto,
   LoginDto,
   PasswordResetConfirmDto,
   SignupDto,
@@ -46,6 +47,7 @@ import {
 
 const INVITATION_TTL_MINUTES = 30; // OQ-2
 const PASSWORD_RESET_TTL_MINUTES = 30; // UC-04 A4: corta vida, patrón NFR-19
+const EMAIL_VERIFICATION_TTL_MINUTES = 30; // UC-04 A5: corta vida, patrón NFR-19
 
 export interface InvitationPreview {
   patientId: string;
@@ -121,6 +123,9 @@ export class MembershipManager {
       target: { type: 'account', id: account.id },
       metadata: { role: account.role },
     });
+    // UC-04 A5: la cuenta arranca sin verificar (createAccount → DB default false); disparamos
+    // el email de verificación (mejor esfuerzo). No invalidamos nada: es el primer token.
+    await this.issueEmailVerification(account, false);
     return this.issueToken(account);
   }
 
@@ -150,6 +155,7 @@ export class MembershipManager {
       role: account.role,
       displayName: account.displayName,
       photoUrl: account.photoUrl,
+      emailVerified: account.emailVerified,
     };
   }
 
@@ -280,6 +286,84 @@ export class MembershipManager {
 
     // Auto-login: el token nuevo es posterior al corte, así que sobrevive a la revocación.
     return this.issueToken(account);
+  }
+
+  // --- UC-04 A5 · Verificación de email del self-signup ---
+
+  /**
+   * Acuña y envía un token de verificación (un solo uso, corta vida) para la cuenta. Al reenviar
+   * (`invalidatePrevious=true`) invalida primero los pendientes anteriores: solo el último link
+   * sirve. Emisión auditada; envío de email mejor esfuerzo (un fallo de SES no rompe el flujo).
+   */
+  private async issueEmailVerification(account: Account, invalidatePrevious: boolean): Promise<void> {
+    if (invalidatePrevious) {
+      await this.accountAccess.invalidatePendingEmailVerifications(account.id, new Date());
+    }
+    const token = randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MINUTES * 60_000);
+    const verification = await this.accountAccess.createEmailVerificationToken({
+      token,
+      accountId: account.id,
+      expiresAt,
+    });
+
+    await this.audit.record({
+      action: 'auth.email-verification.issued',
+      actor: account.id,
+      target: { type: 'account', id: account.id },
+      metadata: { verificationId: verification.id, expiresAt },
+    });
+
+    void this.email
+      .sendEmailVerificationEmail({ to: account.email, token: verification.token, expiresAt: verification.expiresAt })
+      .catch((err) =>
+        this.logger.warn(`No se pudo enviar el email de verificación: ${(err as Error).message}`),
+      );
+  }
+
+  /**
+   * UC-04 A5 · Pedir/reenviar el email de verificación. Responde SIEMPRE ok (anti-enumeración): el
+   * llamador nunca sabe si el email existe. Si la cuenta existe y NO está verificada, acuña un token
+   * nuevo, invalida los pendientes anteriores y reenvía el email. Si ya está verificada, no hace nada.
+   */
+  async requestEmailVerification(email: string): Promise<void> {
+    const account = await this.accountAccess.findAccountByEmail(email);
+    // Anti-enumeración: sin cuenta (o ya verificada), no hacemos nada pero devolvemos igual (200 arriba).
+    if (!account || account.emailVerified) return;
+    await this.issueEmailVerification(account, true);
+  }
+
+  /**
+   * UC-04 A5 · Confirmación de la verificación. Valida el token (existe, pendiente, no expirado; si
+   * no → 410 sin distinguir cuál de las tres). Con token válido: marca la cuenta verificada, consume
+   * el token y audita el uso, todo en una transacción. El at-most-once (NFR-34) lo garantiza el token
+   * de un solo uso, no un operationId aparte (ADR-0002). Devuelve una sesión nueva (auto-login) ya con
+   * `emailVerified=true`, para que el banner del cliente desaparezca sin re-loguear.
+   */
+  async confirmEmailVerification(dto: EmailVerificationConfirmDto): Promise<AuthResponseDto> {
+    const verification = await this.accountAccess.findEmailVerificationByToken(dto.token);
+    // Anti-enumeración: no distinguimos inexistente / usado / expirado (todo 410).
+    if (!verification || verification.status !== 'pending' || verification.expiresAt.getTime() <= Date.now()) {
+      throw new GoneException('El enlace de verificación es inválido o expiró');
+    }
+
+    const account = await this.accountAccess.findAccountById(verification.accountId);
+    if (!account) throw new GoneException('El enlace de verificación es inválido o expiró');
+
+    await this.tx.run(async (em) => {
+      await this.accountAccess.markEmailVerified(account.id, em);
+      await this.accountAccess.markEmailVerificationUsed(verification.id, new Date(), em);
+      await this.audit.record({
+        action: 'auth.email-verification.confirmed',
+        actor: account.id,
+        target: { type: 'account', id: account.id },
+        metadata: { verificationId: verification.id },
+        manager: em,
+      });
+    });
+
+    // Auto-login con el estado ya verificado (el objeto en memoria trae emailVerified=false).
+    return this.issueToken({ ...account, emailVerified: true });
   }
 
   // --- UC-23 · Perfil de la cuenta ---
@@ -732,6 +816,19 @@ export class MembershipManager {
   ): Promise<FamilyInvitation> {
     const patient = await this.accountAccess.findPatientById(patientId);
     if (!patient) throw new NotFoundException('Paciente no encontrado');
+
+    // UC-04 A5 · Gate del self-signup no-verificado: emitir una invitación da acceso al círculo
+    // clínico de un paciente y manda email a un tercero — la acción más sensible que un self-signup
+    // alcanza por su cuenta. Sin email verificado → 403 EMAIL_NOT_VERIFIED (código propio para que el
+    // cliente ofrezca verificar, no que interprete falta de permiso/rol).
+    const inviter = await this.accountAccess.findAccountById(inviterAccountId);
+    if (!inviter?.emailVerified) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Verificá tu email para poder invitar a otras personas',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
 
     // Solo quien está vinculado al paciente puede invitar.
     const link = await this.accountAccess.getLink(patientId, inviterAccountId);

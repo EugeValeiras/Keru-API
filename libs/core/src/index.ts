@@ -25,6 +25,7 @@ export * from './audit/audit.util';
 
 // Email / File storage (SES / S3 — floci en dev)
 export * from './email/email.util';
+export * from './email/email.templates';
 export * from './files/file-storage.util';
 
 // Permission / Authorization

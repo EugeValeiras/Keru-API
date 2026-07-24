@@ -166,6 +166,70 @@
         ]
       }
     },
+    "/api/v1/auth/email-verification/request": {
+      "post": {
+        "operationId": "AuthController_requestEmailVerification_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailVerificationRequestResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "UC-04 A5 · Pedir/reenviar el email de verificación: responde SIEMPRE 200 (anti-enumeración)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email-verification/confirm": {
+      "post": {
+        "operationId": "AuthController_confirmEmailVerification_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationConfirmDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "UC-04 A5 · Confirmar verificación: marca el email verificado y auto-loguea (410 si el token es inválido/expirado/usado)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/step-up": {
       "post": {
         "operationId": "AuthController_stepUp_v1",
@@ -3046,6 +3110,11 @@
             "type": "string",
             "nullable": true,
             "description": "UC-23 · Foto de la cuenta para el avatar del header (null si no cargó una)"
+          },
+          "emailVerified": {
+            "type": "boolean",
+            "example": false,
+            "description": "UC-04 A5 · Si el email de la cuenta está verificado. El self-signup arranca en false; el cliente muestra el banner y gatea acciones sensibles hasta que confirme."
           }
         },
         "required": [
@@ -3053,7 +3122,8 @@
           "accountId",
           "email",
           "role",
-          "displayName"
+          "displayName",
+          "emailVerified"
         ]
       },
       "LoginDto": {
@@ -3138,6 +3208,43 @@
           "newPassword"
         ]
       },
+      "EmailVerificationRequestDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "familiar@test.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "EmailVerificationRequestResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true,
+            "description": "Siempre true: no revela si el email existe ni si ya está verificado (anti-enumeración, UC-04 A5)."
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "EmailVerificationConfirmDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Token de un solo uso recibido por email"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
       "StepUpDto": {
         "type": "object",
         "properties": {
@@ -3194,13 +3301,19 @@
               "caregiver",
               "admin"
             ]
+          },
+          "emailVerified": {
+            "type": "boolean",
+            "example": false,
+            "description": "UC-04 A5 · Si el email de la cuenta está verificado (self-signup arranca en false)."
           }
         },
         "required": [
           "id",
           "email",
           "displayName",
-          "role"
+          "role",
+          "emailVerified"
         ]
       },
       "UpdateAccountDto": {

@@ -8,8 +8,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * perfil se copia a la cuenta (COALESCE). El nombre lo aporta la cuenta (siempre presente, identidad
  * de login del signup); el `displayName` del perfil era un duplicado y se descarta.
  */
-export class CaregiverIdentityFromAccount1784860000000 implements MigrationInterface {
-  name = 'CaregiverIdentityFromAccount1784860000000';
+export class CaregiverIdentityFromAccount1784870000000 implements MigrationInterface {
+  name = 'CaregiverIdentityFromAccount1784870000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1) Backfill no-destructivo: no perder ninguna foto seteada (gana la de la cuenta si existe).
