@@ -117,7 +117,7 @@ describe('EmailUtility · envío multipart (HTML + texto)', () => {
   });
 
   it('Dado EMAIL_LOGO_URL configurado, cuando envía, entonces el <img> del logo usa esa URL (KER-64)', async () => {
-    const logoUrl = 'https://cdn.keru.app/email/keru-logo.png';
+    const logoUrl = 'https://cdn.keru.ar/email/keru-logo.png';
     const config = {
       get: jest.fn((k: string, d?: unknown) => (k === 'EMAIL_LOGO_URL' ? logoUrl : d)),
     } as unknown as ConfigService;

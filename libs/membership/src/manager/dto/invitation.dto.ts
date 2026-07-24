@@ -37,14 +37,19 @@ export class InvitationResponseDto {
   @ApiProperty({ description: 'Deep link para compartir (abre app o web).' })
   link!: string;
 
-  static from(inv: FamilyInvitation): InvitationResponseDto {
+  /**
+   * El deep link se arma con el `baseUrl` del ambiente (APP_BASE_URL): dev → dev.keru.ar,
+   * prod → keru.ar. Nunca hardcodear el dominio (KER-71). Coincide con el link que arma
+   * EmailUtility.sendInvitationEmail (misma convención `${APP_BASE_URL}/invite/:token`).
+   */
+  static from(inv: FamilyInvitation, baseUrl: string): InvitationResponseDto {
     return {
       token: inv.token,
       patientId: inv.patientId,
       invitedEmail: inv.invitedEmail,
       status: inv.status,
       expiresAt: inv.expiresAt,
-      link: `https://keru.app/invite/${inv.token}`,
+      link: `${baseUrl}/invite/${inv.token}`,
     };
   }
 }

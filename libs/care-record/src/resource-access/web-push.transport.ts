@@ -22,7 +22,7 @@ export class WebPushTransport extends NotificationTransport {
     super();
     const publicKey = config.get<string>('VAPID_PUBLIC_KEY', '');
     const privateKey = config.get<string>('VAPID_PRIVATE_KEY', '');
-    const subject = config.get<string>('VAPID_SUBJECT', 'mailto:no-reply@keru.app');
+    const subject = config.get<string>('VAPID_SUBJECT', 'mailto:no-reply@keru.ar');
     this.enabled = publicKey.length > 0 && privateKey.length > 0;
     this.publicKey = this.enabled ? publicKey : null;
     if (this.enabled) {

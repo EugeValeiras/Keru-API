@@ -20,7 +20,7 @@ export class EmailUtility {
 
   constructor(private readonly config: ConfigService) {
     const endpoint = this.config.get<string>('AWS_ENDPOINT_URL');
-    this.from = this.config.get<string>('SES_FROM', 'no-reply@keru.app');
+    this.from = this.config.get<string>('SES_FROM', 'no-reply@keru.ar');
     this.appBaseUrl = this.config.get<string>('APP_BASE_URL', 'http://localhost:4200');
     // KER-64: el logo se sirve desde una URL pública HTTPS estable (Gmail/Outlook bloquean data:).
     this.logoUrl = this.config.get<string>('EMAIL_LOGO_URL', DEFAULT_LOGO_URL);

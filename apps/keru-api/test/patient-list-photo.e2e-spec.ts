@@ -10,7 +10,7 @@ import { TestAccount, bearer, createE2EApp, http, patientBody, signup, uid } fro
 describe('E2E · El listado de pacientes expone photoUrl (KER-65, UC-22)', () => {
   let app: INestApplication;
   let titular: TestAccount;
-  const photo = 'https://cdn.keru.app/p/rosa-e2e.jpg';
+  const photo = 'https://cdn.keru.ar/p/rosa-e2e.jpg';
 
   beforeAll(async () => {
     app = await createE2EApp();

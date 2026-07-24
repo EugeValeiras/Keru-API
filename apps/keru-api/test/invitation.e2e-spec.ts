@@ -42,8 +42,12 @@ describe('E2E · Invitación de vínculo con revocación (UC-03)', () => {
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ patientId, status: 'pending' });
-    expect(res.body.link).toContain(res.body.token);
     token = res.body.token;
+    // KER-71: el deep link se arma con APP_BASE_URL del ambiente (nunca con un dominio hardcodeado).
+    // Mismo default que el controller (ConfigService.get('APP_BASE_URL', 'http://localhost:4200')),
+    // así pasa tanto con APP_BASE_URL seteado (stack aislado → puerto dinámico) como sin setear.
+    const appBaseUrl = process.env.APP_BASE_URL ?? 'http://localhost:4200';
+    expect(res.body.link).toBe(`${appBaseUrl}/invite/${token}`);
 
     const list = await http(app)
       .get(`/api/v1/patients/${patientId}/invitations`)

@@ -52,7 +52,7 @@ describe('WebPushTransport', () => {
     const report = await transport.deliver([sub(), sub({ endpoint: 'https://push.test/sub-2' })], payload);
 
     expect(transport.getPublicKey()).toBe('pub');
-    expect(webpush.setVapidDetails).toHaveBeenCalledWith('mailto:no-reply@keru.app', 'pub', 'priv');
+    expect(webpush.setVapidDetails).toHaveBeenCalledWith('mailto:no-reply@keru.ar', 'pub', 'priv');
     expect(webpush.sendNotification).toHaveBeenCalledTimes(2);
     expect(webpush.sendNotification).toHaveBeenCalledWith(
       { endpoint: 'https://push.test/sub-1', keys: { p256dh: 'p256dh-key', auth: 'auth-secret' } },

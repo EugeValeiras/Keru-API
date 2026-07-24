@@ -3747,7 +3747,7 @@
           },
           "photoUrl": {
             "type": "string",
-            "example": "https://cdn.keru.app/p/rosa.jpg"
+            "example": "https://cdn.keru.ar/p/rosa.jpg"
           },
           "mainCondition": {
             "type": "string",
@@ -3797,7 +3797,7 @@
           },
           "photoUrl": {
             "type": "string",
-            "example": "https://cdn.keru.app/p/rosa.jpg",
+            "example": "https://cdn.keru.ar/p/rosa.jpg",
             "description": "Foto del paciente si tiene una cargada; ausente si no. El cliente cae al avatar de iniciales."
           },
           "duplicateCandidateId": {
@@ -3835,7 +3835,7 @@
           },
           "photoUrl": {
             "type": "string",
-            "example": "https://cdn.keru.app/p/rosa.jpg"
+            "example": "https://cdn.keru.ar/p/rosa.jpg"
           },
           "mainCondition": {
             "type": "string",
@@ -3935,7 +3935,7 @@
           },
           "photoUrl": {
             "type": "string",
-            "example": "https://cdn.keru.app/p/rosa.jpg"
+            "example": "https://cdn.keru.ar/p/rosa.jpg"
           },
           "mainCondition": {
             "type": "string",

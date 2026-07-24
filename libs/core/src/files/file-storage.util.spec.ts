@@ -30,7 +30,6 @@ describe('FileStorageUtility · host público por ambiente (KER-70)', () => {
     const util = utilWith({ S3_PUBLIC_URL: 'https://cdn.dev.keru.ar/media' });
     const { url } = await util.putImage(Buffer.from('x'), 'image/png');
     expect(url).toMatch(/^https:\/\/cdn\.dev\.keru\.ar\/media\/images\/[0-9a-f-]+\.png$/);
-    expect(url).not.toContain('cdn.keru.app');
   });
 
   it('Dado S3_PUBLIC_URL de CDN (prod), cuando sube una imagen, entonces la URL usa cdn.keru.ar', async () => {
