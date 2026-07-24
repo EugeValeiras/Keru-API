@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SESClient, SendEmailCommand, VerifyEmailIdentityCommand } from '@aws-sdk/client-ses';
-import { BrandedEmailContent, renderBrandedEmail } from './email.templates';
+import { BrandedEmailContent, DEFAULT_LOGO_URL, renderBrandedEmail } from './email.templates';
 
 /**
  * EmailUtility (constitution §3.1, utility transversal como Audit/PubSub).
@@ -15,12 +15,15 @@ export class EmailUtility {
   private readonly client: SESClient;
   private readonly from: string;
   private readonly appBaseUrl: string;
+  private readonly logoUrl: string;
   private identityVerified = false;
 
   constructor(private readonly config: ConfigService) {
     const endpoint = this.config.get<string>('AWS_ENDPOINT_URL');
     this.from = this.config.get<string>('SES_FROM', 'no-reply@keru.app');
     this.appBaseUrl = this.config.get<string>('APP_BASE_URL', 'http://localhost:4200');
+    // KER-64: el logo se sirve desde una URL pública HTTPS estable (Gmail/Outlook bloquean data:).
+    this.logoUrl = this.config.get<string>('EMAIL_LOGO_URL', DEFAULT_LOGO_URL);
     this.client = new SESClient({
       region: this.config.get<string>('AWS_REGION', 'us-east-1'),
       ...(endpoint
@@ -93,7 +96,7 @@ export class EmailUtility {
 
   private async send(to: string, subject: string, content: BrandedEmailContent): Promise<void> {
     await this.ensureIdentity();
-    const { html, text } = renderBrandedEmail(content);
+    const { html, text } = renderBrandedEmail(content, this.logoUrl);
     await this.client.send(
       new SendEmailCommand({
         Source: this.from,

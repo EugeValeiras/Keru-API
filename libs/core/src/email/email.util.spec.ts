@@ -32,10 +32,17 @@ describe('renderBrandedEmail (plantilla de marca)', () => {
 
   it('Dado un contenido, cuando renderiza, entonces el logo lleva alt y el CTA usa la URL', () => {
     const { html } = renderBrandedEmail(content);
-    expect(html).toMatch(/<img[^>]*alt="keru"/); // logo con texto alternativo
-    expect(html).toContain('data:image/svg+xml;base64,'); // logo embebido, sin depender de la webapp
+    expect(html).toMatch(/<img[^>]*alt="Keru"/); // logo con texto alternativo
+    // KER-64: URL pública HTTPS (no data-URI, que Gmail/Outlook bloquean).
+    expect(html).toMatch(/<img[^>]*src="https:\/\/[^"]+\.png"/);
+    expect(html).not.toContain('data:image'); // ya no se embebe el logo
     expect(html).toContain('Verificar mi email'); // label del CTA
     expect(html).toContain(content.cta.url); // el CTA apunta al link
+  });
+
+  it('Dado un logoUrl explícito, cuando renderiza, entonces el <img> del logo usa esa URL', () => {
+    const { html } = renderBrandedEmail(content, 'https://cdn.example.com/logo.png');
+    expect(html).toContain('src="https://cdn.example.com/logo.png"');
   });
 
   it('Dado un contenido, cuando renderiza, entonces incluye preheader, encabezado, motivo y aviso de no responder', () => {
@@ -85,7 +92,7 @@ describe('EmailUtility · envío multipart (HTML + texto)', () => {
     expect(subject).toContain('Rosa');
     expect(html).toContain('/invite/inv-tok');
     expect(text).toContain('/invite/inv-tok');
-    expect(html).toMatch(/<img[^>]*alt="keru"/);
+    expect(html).toMatch(/<img[^>]*alt="Keru"/);
     expect(html).toContain('Aceptar invitación');
   });
 
@@ -107,6 +114,22 @@ describe('EmailUtility · envío multipart (HTML + texto)', () => {
     expect(html).toContain('verify-email?token=ver-tok');
     expect(text).toContain('verify-email?token=ver-tok');
     expect(html).toContain('Verificar mi email');
+  });
+
+  it('Dado EMAIL_LOGO_URL configurado, cuando envía, entonces el <img> del logo usa esa URL (KER-64)', async () => {
+    const logoUrl = 'https://cdn.keru.app/email/keru-logo.png';
+    const config = {
+      get: jest.fn((k: string, d?: unknown) => (k === 'EMAIL_LOGO_URL' ? logoUrl : d)),
+    } as unknown as ConfigService;
+    const util = new EmailUtility(config);
+    const send = jest.fn().mockResolvedValue({});
+    (util as unknown as { client: { send: jest.Mock } }).client.send = send;
+
+    await util.sendEmailVerificationEmail({ to: 'a@test.com', token: 't', expiresAt: new Date() });
+
+    const { html } = bodyOf(send);
+    expect(html).toContain(`src="${logoUrl}"`);
+    expect(html).not.toContain('data:image');
   });
 
   it('Dado que SES falla, cuando envía, entonces el error se propaga para que el llamador lo trague (mejor esfuerzo)', async () => {
