@@ -198,6 +198,38 @@
         ]
       }
     },
+    "/api/v1/auth/email-verification/peek": {
+      "post": {
+        "operationId": "AuthController_peekEmailVerification_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationConfirmDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailVerificationPeekResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "UC-04 A5.2b (KER-63) · Peek del token: devuelve el email destino SIN consumir el token, para ramificar por sesión antes de confirmar (410 si el token es inválido/expirado/usado)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/email-verification/confirm": {
       "post": {
         "operationId": "AuthController_confirmEmailVerification_v1",
@@ -3565,6 +3597,19 @@
         },
         "required": [
           "token"
+        ]
+      },
+      "EmailVerificationPeekResponseDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "familiar@test.com",
+            "description": "UC-04 A5.2b · Email destino del token, para que el cliente compare con la sesión activa ANTES de consumir el token (sin cambiar de cuenta en silencio). Solo se devuelve para un token válido/pendiente; inválido/expirado/reusado → 410."
+          }
+        },
+        "required": [
+          "email"
         ]
       },
       "StepUpDto": {

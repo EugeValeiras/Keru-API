@@ -6,6 +6,7 @@ import { MembershipManager } from './manager/membership.manager';
 import {
   AuthResponseDto,
   EmailVerificationConfirmDto,
+  EmailVerificationPeekResponseDto,
   EmailVerificationRequestDto,
   EmailVerificationRequestResponseDto,
   LoginDto,
@@ -94,6 +95,17 @@ export class AuthController {
   ): Promise<EmailVerificationRequestResponseDto> {
     await this.membership.requestEmailVerification(dto.email);
     return { ok: true };
+  }
+
+  @Post('email-verification/peek')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'UC-04 A5.2b (KER-63) · Peek del token: devuelve el email destino SIN consumir el token, para ramificar por sesión antes de confirmar (410 si el token es inválido/expirado/usado)',
+  })
+  @ApiOkResponse({ type: EmailVerificationPeekResponseDto })
+  peekEmailVerification(@Body() dto: EmailVerificationConfirmDto): Promise<EmailVerificationPeekResponseDto> {
+    return this.membership.peekEmailVerification(dto);
   }
 
   @Post('email-verification/confirm')
