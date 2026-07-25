@@ -19,6 +19,7 @@ import { EmailVerification1784860000000 } from './1784860000000-EmailVerificatio
 import { CaregiverIdentityFromAccount1784870000000 } from './1784870000000-CaregiverIdentityFromAccount';
 import { CertificationCatalog1784880000000 } from './1784880000000-CertificationCatalog';
 import { CertificationCatalogIconKey1784890000000 } from './1784890000000-CertificationCatalogIconKey';
+import { PerfIndicesCaregiverIdRecordId1784900000000 } from './1784900000000-PerfIndicesCaregiverIdRecordId';
 
 export const ALL_MIGRATIONS: Array<new () => unknown> = [
   InitialSchema1784783279894,
@@ -34,4 +35,5 @@ export const ALL_MIGRATIONS: Array<new () => unknown> = [
   CaregiverIdentityFromAccount1784870000000,
   CertificationCatalog1784880000000,
   CertificationCatalogIconKey1784890000000,
+  PerfIndicesCaregiverIdRecordId1784900000000,
 ];
