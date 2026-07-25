@@ -23,6 +23,12 @@ export class CaregiverCardDto {
   })
   ratingAverage?: number;
   @ApiPropertyOptional({ description: 'Cantidad de reseñas reveladas' }) ratingCount?: number;
+  @ApiProperty({
+    type: [CertificationView],
+    description:
+      'KER-82: SOLO las certificaciones aprobadas (insignias por-cert del catálogo, UC-06). Las pendientes/rechazadas y la key privada del documento NO se exponen al público. La card las muestra junto a las insignias de verificación (`badges`).',
+  })
+  certifications!: CertificationView[];
 
   static from(
     c: Caregiver,
@@ -42,24 +48,18 @@ export class CaregiverCardDto {
       isFavorite,
       ratingAverage: rating?.average,
       ratingCount: rating?.count,
+      certifications: publicCertifications(c.certifications),
     };
   }
 }
 
-/** Perfil completo del cuidador (UC-07). */
+/** Perfil completo del cuidador (UC-07). Hereda `certifications` (aprobadas) de la card. */
 export class CaregiverProfileDto extends CaregiverCardDto {
-  @ApiProperty({
-    type: [CertificationView],
-    description:
-      'KER-52: SOLO las certificaciones aprobadas, cada una con su insignia (catálogo). Las pendientes/rechazadas y la key privada del documento NO se exponen al público.',
-  })
-  certifications!: CertificationView[];
   @ApiProperty({ type: Object, isArray: true }) availability!: Caregiver['availability'];
 
   static fromProfile(c: Caregiver): CaregiverProfileDto {
     return {
       ...CaregiverCardDto.from(c),
-      certifications: publicCertifications(c.certifications),
       availability: c.availability,
     };
   }
