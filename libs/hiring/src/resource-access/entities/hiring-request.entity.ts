@@ -51,6 +51,13 @@ export class HiringRequest {
   requesterAccountId!: string;
 
   @Column({ type: 'uuid' })
+  /**
+   * Índice solo-caregiverId (KER-85): cubre `where caregiverId order createdAt` sin status
+   * (listRequestsForCaregiver, ripple de desactivación). El compound ['caregiverId','status']
+   * no sirve para ese patrón (filtra por status). Nombre explícito para que synchronize (e2e)
+   * y la migración (prod) generen el mismo índice.
+   */
+  @Index('IDX_hiring_request_caregiverId')
   caregiverId!: string;
 
   @Column({ type: 'varchar', length: 16 })

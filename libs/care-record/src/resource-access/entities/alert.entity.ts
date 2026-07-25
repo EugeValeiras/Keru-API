@@ -23,6 +23,12 @@ export class Alert {
   patientId!: string;
 
   @Column({ type: 'uuid' })
+  /**
+   * Índice solo-recordId (KER-85): resolveByCorrection filtra `where recordId = :recordId` en
+   * cada corrección clínica (UC-20/NFR-38) → sin índice es full scan sobre 100k+ alertas. Nombre
+   * explícito para que synchronize (e2e) y la migración (prod) generen el mismo índice.
+   */
+  @Index('IDX_alert_recordId')
   recordId!: string;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
