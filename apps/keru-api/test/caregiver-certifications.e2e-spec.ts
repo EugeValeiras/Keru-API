@@ -225,6 +225,60 @@ describe('KER-52 · Catálogo + adjunto privado + aprobación por-certificación
     expect(mineCpr.rejectionReason).toBe('Documento ilegible');
   });
 
+  it('KER-82 · la CARD del listado (search) trae las certificaciones APROBADAS (no las pendientes) sin el documento privado', async () => {
+    const { caregiverId } = await registerCaregiverWithCert('nursing-degree');
+    await approveAccount(caregiverId);
+
+    // Cert aún pendiente: la card la trae vacía (solo aprobadas, publicCertifications) — como el perfil.
+    const pending = await http(app).get('/api/v1/marketplace/caregivers').set(bearer(family.token));
+    expect(pending.status).toBe(200);
+    const cardPending = pending.body.find((c: { id: string }) => c.id === caregiverId);
+    expect(cardPending).toBeDefined();
+    expect(cardPending.certifications).toEqual([]);
+
+    // El admin aprueba la certificación (con step-up).
+    const certId = await adminCertId(caregiverId);
+    await http(app)
+      .post(`/api/v1/admin/caregivers/${caregiverId}/certifications/${certId}/approve`)
+      .set(bearer(admin.token))
+      .set(stepUpHeader(await stepUp(app, admin)))
+      .expect(201);
+
+    // Ahora la card la incluye con su insignia del catálogo; el documento privado NUNCA se expone.
+    const approved = await http(app).get('/api/v1/marketplace/caregivers').set(bearer(family.token));
+    const card = approved.body.find((c: { id: string }) => c.id === caregiverId);
+    expect(card.certifications).toHaveLength(1);
+    expect(card.certifications[0]).toMatchObject({
+      catalogKey: 'nursing-degree',
+      verified: true,
+      status: 'approved',
+      iconKey: 'stethoscope',
+      label: expect.any(String),
+    });
+    expect(card.certifications[0].documentKey).toBeUndefined();
+  });
+
+  it('KER-82 · el listado admin trae TODAS las certificaciones con su estado (gestión, no solo aprobadas)', async () => {
+    const { caregiverId } = await registerCaregiverWithCert('nursing-degree');
+    await approveAccount(caregiverId);
+
+    // La cert nace pendiente; el listado de gestión la muestra con su estado (a diferencia del marketplace).
+    const list = await http(app)
+      .get('/api/v1/admin/caregivers')
+      .query({ pageSize: '100' })
+      .set(bearer(admin.token));
+    expect(list.status).toBe(200);
+    const item = list.body.items.find((c: { id: string }) => c.id === caregiverId);
+    expect(item).toBeDefined();
+    expect(item.certifications).toHaveLength(1);
+    expect(item.certifications[0]).toMatchObject({
+      catalogKey: 'nursing-degree',
+      status: 'pending',
+      verified: false,
+      iconKey: 'stethoscope',
+    });
+  });
+
   it('Criterio 2 · cada descarga del documento queda auditada', async () => {
     const { caregiverId } = await registerCaregiverWithCert();
     await approveAccount(caregiverId);
