@@ -277,6 +277,12 @@ export class AccountAccess {
     return this.patients.findOne({ where: { id } });
   }
 
+  /** Pacientes por id, en un solo SELECT ... WHERE id IN (...) (batch, evita N+1). Ids vacíos → sin query. */
+  findPatientsByIds(ids: string[]): Promise<Patient[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.patients.find({ where: { id: In(ids) } });
+  }
+
   /**
    * UC-22 · Set parcial de la ficha del paciente. Naturalmente idempotente (repetir el mismo
    * patch deja el mismo estado final), por eso no requiere operationId (NFR-34, aclaración).
