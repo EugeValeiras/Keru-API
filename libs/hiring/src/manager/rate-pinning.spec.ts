@@ -53,11 +53,13 @@ function makeManager(currentRate: number) {
     favoriteAccess: { listCaregiverIds: jest.fn().mockResolvedValue([]) },
     caregiverAccess: {
       findById: jest.fn().mockResolvedValue(caregiver(currentRate)),
+      findByIds: jest.fn().mockResolvedValue([caregiver(currentRate)]),
       findByAccountId: jest.fn().mockResolvedValue(caregiver(currentRate)),
     },
     accountAccess: {
       getLink: jest.fn().mockResolvedValue({ role: 'consent-holder' }),
       findPatientById: jest.fn().mockResolvedValue({ id: 'pat-1', fullName: 'Rosa Díaz' }),
+      findPatientsByIds: jest.fn().mockResolvedValue([{ id: 'pat-1', fullName: 'Rosa Díaz' }]),
     },
     audit: { record: jest.fn() },
     pubsub: { publish: jest.fn().mockResolvedValue({ id: 'evt-1' }), enqueue: jest.fn() },

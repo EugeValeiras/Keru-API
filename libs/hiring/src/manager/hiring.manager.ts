@@ -236,27 +236,22 @@ export class HiringManager {
     return this.reputation.myReviewsFor(completedIds, viewerAccountId);
   }
 
-  /** Nombres de pacientes por id (réplica de solo-lectura de Membership), deduplicado. */
+  /** Nombres de pacientes por id (réplica de solo-lectura de Membership), en un solo batch (evita N+1). */
   private async patientNames(patientIds: string[]): Promise<Map<string, string>> {
     const unique = [...new Set(patientIds)];
-    const pairs = await Promise.all(
-      unique.map(
-        async (id) =>
-          [id, (await this.accountAccess.findPatientById(id))?.fullName ?? ''] as const,
-      ),
+    const patients = await this.accountAccess.findPatientsByIds(unique);
+    return new Map(
+      patients.filter((p) => p.fullName).map((p) => [p.id, p.fullName] as const),
     );
-    return new Map(pairs.filter(([, name]) => name !== ''));
   }
 
-  /** Nombres de cuidadores por id (réplica de solo-lectura de Membership), deduplicado. */
+  /** Nombres de cuidadores por id (réplica de solo-lectura de Membership), en un solo batch (evita N+1). */
   private async caregiverNames(caregiverIds: string[]): Promise<Map<string, string>> {
     const unique = [...new Set(caregiverIds)];
-    const pairs = await Promise.all(
-      unique.map(
-        async (id) => [id, (await this.caregiverAccess.findById(id))?.displayName ?? ''] as const,
-      ),
+    const caregivers = await this.caregiverAccess.findByIds(unique);
+    return new Map(
+      caregivers.filter((c) => c.displayName).map((c) => [c.id, c.displayName] as const),
     );
-    return new Map(pairs.filter(([, name]) => name !== ''));
   }
 
   async acceptRequest(requestId: string, caregiverAccountId: string): Promise<AcceptResult> {
@@ -525,12 +520,12 @@ export class HiringManager {
   async caregiverHistory(patientId: string, requesterAccountId: string): Promise<Array<{ assignment: Assignment; caregiverName: string }>> {
     await this.assertLinked(patientId, requesterAccountId);
     const assignments = await this.hiringAccess.listAssignmentsForPatient(patientId);
-    return Promise.all(
-      assignments.map(async (a) => {
-        const c = await this.caregiverAccess.findById(a.caregiverId);
-        return { assignment: a, caregiverName: c?.displayName ?? '' };
-      }),
-    );
+    // Un solo batch por los cuidadores únicos (evita N+1); lookup en memoria por id.
+    const names = await this.caregiverNames(assignments.map((a) => a.caregiverId));
+    return assignments.map((a) => ({
+      assignment: a,
+      caregiverName: names.get(a.caregiverId) ?? '',
+    }));
   }
 
   // --- NFR-31 · Ripple de desactivación (lo dispara el worker del outbox, NO Membership directo) ---

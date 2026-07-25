@@ -46,10 +46,12 @@ function makeManager(overrides: Record<string, unknown> = {}): HiringManager {
     favoriteAccess: { listCaregiverIds: jest.fn().mockResolvedValue(['cg-2']) },
     caregiverAccess: {
       findById: jest.fn().mockResolvedValue(caregiver('cg-1', 'Laura Gómez')),
+      findByIds: jest.fn().mockResolvedValue([caregiver('cg-1', 'Laura Gómez')]),
       findByAccountId: jest.fn().mockResolvedValue(caregiver('cg-1')),
     },
     accountAccess: {
       findPatientById: jest.fn().mockResolvedValue({ id: 'pat-1', fullName: 'Rosa Díaz' }),
+      findPatientsByIds: jest.fn().mockResolvedValue([{ id: 'pat-1', fullName: 'Rosa Díaz' }]),
     },
     audit: { log: jest.fn() },
     pubsub: { publish: jest.fn().mockResolvedValue({ id: 'evt-1' }), enqueue: jest.fn() },
@@ -125,5 +127,70 @@ describe('UC-10 · bandeja del cuidador con nombre del paciente y contacto restr
 
     expect(dto.caregiverName).toBe('Laura Gómez');
     expect(dto.contactData).toEqual({ phone: '+54 11 5555-5555' });
+  });
+});
+
+describe('KER-84 · batch de nombres sin N+1', () => {
+  it('caregiverHistory con múltiples asignaciones resuelve nombres en UN solo findByIds (ids únicos) y conserva el orden', async () => {
+    const findByIds = jest
+      .fn()
+      .mockResolvedValue([caregiver('cg-1', 'Laura Gómez'), caregiver('cg-2', 'Marta Ruiz')]);
+    const assignments = [
+      { id: 'as-1', caregiverId: 'cg-1' },
+      { id: 'as-2', caregiverId: 'cg-2' },
+      { id: 'as-3', caregiverId: 'cg-1' }, // id repetido: no debe agregar otra query
+    ];
+    const manager = makeManager({
+      caregiverAccess: { findByIds },
+      accountAccess: { getLink: jest.fn().mockResolvedValue({ role: 'consent-holder' }) },
+      hiringAccess: { listAssignmentsForPatient: jest.fn().mockResolvedValue(assignments) },
+    });
+
+    const history = await manager.caregiverHistory('pat-1', 'acc-fam');
+
+    // Una sola query batch con los ids ÚNICOS (O(1), no O(n)).
+    expect(findByIds).toHaveBeenCalledTimes(1);
+    expect(findByIds).toHaveBeenCalledWith(['cg-1', 'cg-2']);
+    // Mismo shape, mismo orden que las asignaciones, nombre correcto por lookup.
+    expect(history).toEqual([
+      { assignment: assignments[0], caregiverName: 'Laura Gómez' },
+      { assignment: assignments[1], caregiverName: 'Marta Ruiz' },
+      { assignment: assignments[2], caregiverName: 'Laura Gómez' },
+    ]);
+  });
+
+  it('caregiverHistory sin asignaciones no dispara ninguna query de nombres', async () => {
+    const findByIds = jest.fn().mockResolvedValue([]);
+    const manager = makeManager({
+      caregiverAccess: { findByIds },
+      accountAccess: { getLink: jest.fn().mockResolvedValue({ role: 'consent-holder' }) },
+      hiringAccess: { listAssignmentsForPatient: jest.fn().mockResolvedValue([]) },
+    });
+
+    const history = await manager.caregiverHistory('pat-1', 'acc-fam');
+
+    expect(history).toEqual([]);
+    // Ids vacíos → findByIds igual se llama con [], y el access corta sin query real.
+    expect(findByIds).toHaveBeenCalledWith([]);
+  });
+
+  it('listRequestsForCaregiverAccount resuelve los nombres de pacientes en UN solo findPatientsByIds', async () => {
+    const findPatientsByIds = jest
+      .fn()
+      .mockResolvedValue([{ id: 'pat-1', fullName: 'Rosa Díaz' }]);
+    const manager = makeManager({
+      accountAccess: { findPatientsByIds },
+      hiringAccess: {
+        listRequestsForCaregiver: jest
+          .fn()
+          .mockResolvedValue([request(), request({ id: 'req-2', patientId: 'pat-1' })]),
+      },
+    });
+
+    const items = await manager.listRequestsForCaregiverAccount('acc-cg');
+
+    expect(findPatientsByIds).toHaveBeenCalledTimes(1);
+    expect(findPatientsByIds).toHaveBeenCalledWith(['pat-1']); // deduplicado
+    expect(items.every((i) => i.patientName === 'Rosa Díaz')).toBe(true);
   });
 });

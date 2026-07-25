@@ -131,6 +131,15 @@ export class CaregiverAccess {
     return this.withIdentity(await this.caregivers.findOne({ where: { id } }));
   }
 
+  /**
+   * Cuidadores por id, en un solo SELECT ... WHERE id IN (...) (batch, evita N+1). El orden del
+   * resultado no está garantizado: el consumidor mapea por id. Ids vacíos → sin query.
+   */
+  async findByIds(ids: string[]): Promise<Caregiver[]> {
+    if (ids.length === 0) return [];
+    return this.withIdentityMany(await this.caregivers.find({ where: { id: In(ids) } }));
+  }
+
   async findByAccountId(accountId: string): Promise<Caregiver | null> {
     return this.withIdentity(await this.caregivers.findOne({ where: { accountId } }));
   }
