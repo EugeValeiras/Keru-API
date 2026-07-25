@@ -108,6 +108,27 @@ export class NotificationDto {
   }
 }
 
+/**
+ * KER-86 · Página de la campana (UC-18). Cursor descendente por createdAt: la respuesta ya no
+ * trae TODAS las notificaciones del destinatario. `nextCursor` opaco alimenta la página siguiente
+ * (append en el panel); null cuando no hay más. El contador de no leídas sigue aparte (badge).
+ */
+export class NotificationPageDto {
+  @ApiProperty({ type: NotificationDto, isArray: true })
+  items!: NotificationDto[];
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Cursor opaco de la página siguiente; null si esta es la última. Reenviar como ?cursor=.',
+  })
+  nextCursor!: string | null;
+
+  static from(page: { items: Notification[]; nextCursor: string | null }): NotificationPageDto {
+    return { items: page.items.map(NotificationDto.from), nextCursor: page.nextCursor };
+  }
+}
+
 /** UC-18 · Resultado de marcar todas como leídas. */
 export class MarkAllReadResponseDto {
   @ApiProperty({ example: true })

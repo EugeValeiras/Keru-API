@@ -65,7 +65,8 @@ describe('E2E · Cancelación de asignación activa, no-show y rehire urgente (K
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       const res = await http(app).get('/api/v1/notifications').set(bearer(token));
-      const match = (res.body as Array<{ type: string; title: string; body: string }>).find(predicate);
+      const items = res.body.items as Array<{ type: string; title: string; body: string }>;
+      const match = items.find(predicate);
       if (match) return match;
       if (Date.now() > deadline) {
         throw new Error(`campana no llegó a tiempo; recibidas: ${JSON.stringify(res.body)}`);

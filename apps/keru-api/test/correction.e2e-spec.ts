@@ -38,7 +38,7 @@ describe('E2E · Corrección de registro con traza y re-evaluación (NFR-38)', (
 
     const bells = await http(app).get('/api/v1/notifications').set(bearer(familiar.token));
     expect(bells.status).toBe(200);
-    expect(bells.body.some((n: { title: string }) => n.title === 'Alerta clínica')).toBe(true);
+    expect(bells.body.items.some((n: { title: string }) => n.title === 'Alerta clínica')).toBe(true);
   });
 
   it('la corrección crea la versión nueva con referencia y razón, y resuelve la alerta por corrección con campana', async () => {
@@ -57,7 +57,7 @@ describe('E2E · Corrección de registro con traza y re-evaluación (NFR-38)', (
     correctionId = res.body.id;
 
     const bells = await http(app).get('/api/v1/notifications').set(bearer(familiar.token));
-    expect(bells.body.some((n: { title: string }) => n.title === 'Alerta resuelta por corrección')).toBe(true);
+    expect(bells.body.items.some((n: { title: string }) => n.title === 'Alerta resuelta por corrección')).toBe(true);
   });
 
   it('el historial conserva el original INTACTO y legible, marcado superseded, y la corrección con su razón', async () => {
@@ -120,7 +120,7 @@ describe('E2E · Corrección de registro con traza y re-evaluación (NFR-38)', (
 
   it('un valor corregido fuera de rango dispara una alerta NUEVA (re-evaluación completa)', async () => {
     const before = await http(app).get('/api/v1/notifications').set(bearer(familiar.token));
-    const alertsBefore = before.body.filter((n: { title: string }) => n.title === 'Alerta clínica').length;
+    const alertsBefore = before.body.items.filter((n: { title: string }) => n.title === 'Alerta clínica').length;
 
     const res = await http(app)
       .post(`/api/v1/patients/${patientId}/records/${correctionId}/corrections`)
@@ -134,7 +134,7 @@ describe('E2E · Corrección de registro con traza y re-evaluación (NFR-38)', (
     expect(res.status).toBe(201);
 
     const after = await http(app).get('/api/v1/notifications').set(bearer(familiar.token));
-    const alertsAfter = after.body.filter((n: { title: string }) => n.title === 'Alerta clínica').length;
+    const alertsAfter = after.body.items.filter((n: { title: string }) => n.title === 'Alerta clínica').length;
     expect(alertsAfter).toBe(alertsBefore + 1);
   });
 

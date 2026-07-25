@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@n
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthPrincipal, CurrentAccount, JwtAuthGuard } from '@keru/core';
 import { CareRecordManager } from './manager/care-record.manager';
-import { MarkAllReadResponseDto, NotificationDto } from './manager/dto/responses.dto';
+import { MarkAllReadResponseDto, NotificationPageDto } from './manager/dto/responses.dto';
 import { PushConfigDto, PushSubscriptionDto, SubscribePushDto, UnsubscribePushResponseDto } from './manager/dto/push.dto';
 
 /** UC-18 · Centro de notificaciones (campana). La campana existe siempre; el push es adicional. */
@@ -14,10 +14,24 @@ export class NotificationController {
   constructor(private readonly careRecord: CareRecordManager) {}
 
   @Get()
-  @ApiOperation({ summary: 'UC-18 · Mis notificaciones' })
-  @ApiOkResponse({ type: NotificationDto, isArray: true })
-  async list(@CurrentAccount() account: AuthPrincipal): Promise<NotificationDto[]> {
-    return (await this.careRecord.listNotifications(account.accountId)).map(NotificationDto.from);
+  @ApiOperation({
+    summary: 'UC-18 · Mis notificaciones (paginado)',
+    description:
+      'KER-86 · Página de la campana ordenada DESC por createdAt con cursor keyset. Omitir `cursor` para la primera página; reenviar `nextCursor` para la siguiente (el panel appendea). Default limit 20, máx 100. El contador de no leídas es endpoint aparte.',
+  })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Tamaño de página (1–100, default 20).' })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Cursor opaco de la página previa (nextCursor). Omitir para la primera.' })
+  @ApiOkResponse({ type: NotificationPageDto })
+  async list(
+    @CurrentAccount() account: AuthPrincipal,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ): Promise<NotificationPageDto> {
+    const page = await this.careRecord.listNotifications(account.accountId, {
+      limit: limit === undefined ? undefined : Number(limit),
+      cursor,
+    });
+    return NotificationPageDto.from(page);
   }
 
   @Get('unread-count')
