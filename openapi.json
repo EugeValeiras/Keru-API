@@ -2708,17 +2708,33 @@
     "/api/v1/notifications": {
       "get": {
         "operationId": "NotificationController_list_v1",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Tamaño de página (1–100, default 20).",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor opaco de la página previa (nextCursor). Omitir para la primera.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/NotificationDto"
-                  }
+                  "$ref": "#/components/schemas/NotificationPageDto"
                 }
               }
             }
@@ -2729,7 +2745,7 @@
             "bearer": []
           }
         ],
-        "summary": "UC-18 · Mis notificaciones",
+        "summary": "UC-18 · Mis notificaciones (paginado)",
         "tags": [
           "Notifications"
         ]
@@ -5660,6 +5676,25 @@
           "body",
           "read",
           "createdAt"
+        ]
+      },
+      "NotificationPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Cursor opaco de la página siguiente; null si esta es la última. Reenviar como ?cursor=."
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "MarkAllReadResponseDto": {

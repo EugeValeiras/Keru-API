@@ -14,7 +14,8 @@ import { AccountAccess } from '@keru/membership';
 import { METRIC_DEFINITIONS } from '../metric-definitions';
 import { CareRecordAccess, RecordInput } from '../resource-access/care-record.access';
 import { ageInYearsAt, RangeAccess } from '../resource-access/range.access';
-import { AlertAccess } from '../resource-access/alert.access';
+import { AlertAccess, NotificationCursor } from '../resource-access/alert.access';
+import { Notification } from '../resource-access/entities/notification.entity';
 import { QuarantineAccess } from '../resource-access/quarantine.access';
 import { PushSubscriptionAccess } from '../resource-access/push-subscription.access';
 import { NotificationTransport, PushPayload } from '../resource-access/notification-transport';
@@ -28,6 +29,51 @@ import { CorrectRecordDto, RecordMedicationDto, RecordNoteDto, RecordVitalsDto }
 export type RecordOutcome =
   | { outcome: 'recorded'; record: ClinicalRecord }
   | { outcome: 'quarantined'; quarantined: QuarantinedRecord };
+
+/** KER-86 · Página de la campana (UC-18): las notificaciones y el cursor a la página siguiente. */
+export interface NotificationPage {
+  items: Notification[];
+  /** Cursor opaco para la página siguiente; null si no hay más. */
+  nextCursor: string | null;
+}
+
+/** KER-86 · Paginación de la campana: default sano y tope duro para acotar la respuesta. */
+const NOTIFICATIONS_DEFAULT_LIMIT = 20;
+const NOTIFICATIONS_MAX_LIMIT = 100;
+
+function clampNotificationLimit(raw: number | undefined): number {
+  if (raw === undefined || !Number.isFinite(raw) || raw < 1) {
+    return NOTIFICATIONS_DEFAULT_LIMIT;
+  }
+  return Math.min(Math.floor(raw), NOTIFICATIONS_MAX_LIMIT);
+}
+
+/** El cursor viaja opaco (base64url de `${createdAt ISO}|${id}`): el cliente no lo interpreta. */
+function encodeNotificationCursor(n: Notification): string {
+  return Buffer.from(`${n.createdAt.toISOString()}|${n.id}`, 'utf8').toString('base64url');
+}
+
+/** Un cursor ausente o ilegible → null (primera página): nunca rompe la lista por un valor malo. */
+function decodeNotificationCursor(raw: string | undefined): NotificationCursor | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const decoded = Buffer.from(raw, 'base64url').toString('utf8');
+    const sep = decoded.indexOf('|');
+    if (sep <= 0) {
+      return null;
+    }
+    const createdAt = new Date(decoded.slice(0, sep));
+    const id = decoded.slice(sep + 1);
+    if (!id || Number.isNaN(createdAt.getTime())) {
+      return null;
+    }
+    return { createdAt, id };
+  } catch {
+    return null;
+  }
+}
 
 /** Destinatario de un push pendiente: cuenta + su notificación de campana (para el outcome, NFR-26). */
 interface PushRecipient {
@@ -536,8 +582,23 @@ export class CareRecordManager implements OnApplicationBootstrap {
   }
 
   // --- UC-18 · Centro de notificaciones (campana) ---
-  listNotifications(accountId: string) {
-    return this.alertAccess.listForAccount(accountId);
+  /**
+   * KER-86 · Página de la campana con cursor descendente por createdAt (keyset). Trae una fila
+   * extra para saber si hay más sin un COUNT; devuelve `nextCursor` opaco (null si es la última
+   * página). El default acota la respuesta aunque el cliente no pida `limit` — una campana con
+   * miles de notificaciones ya no viaja entera. Un cursor ilegible se ignora (primera página).
+   */
+  async listNotifications(
+    accountId: string,
+    opts?: { limit?: number; cursor?: string },
+  ): Promise<NotificationPage> {
+    const limit = clampNotificationLimit(opts?.limit);
+    const cursor = decodeNotificationCursor(opts?.cursor);
+    const rows = await this.alertAccess.listForAccount(accountId, { limit: limit + 1, cursor });
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? encodeNotificationCursor(items[items.length - 1]) : null;
+    return { items, nextCursor };
   }
   unreadCount(accountId: string) {
     return this.alertAccess.unreadCount(accountId);

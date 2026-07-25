@@ -37,6 +37,12 @@ export interface RecordDeliveryOutcomeInput {
   detail?: string | null;
 }
 
+/** KER-86 · Punto keyset de la campana: la última notificación de la página previa. */
+export interface NotificationCursor {
+  createdAt: Date;
+  id: string;
+}
+
 /**
  * AlertAccess (constitution §3.1). Verbos atómicos sobre alertas, el centro de notificaciones
  * (campana) y el outcome de entrega por destinatario y canal (KER-34, NFR-11/26/27).
@@ -199,11 +205,32 @@ export class AlertAccess {
     return this.deliveries.find({ where: { notificationId } });
   }
 
-  listForAccount(accountId: string): Promise<Notification[]> {
-    return this.notifications.find({
-      where: { recipientAccountId: accountId },
-      order: { createdAt: 'DESC' },
-    });
+  /**
+   * KER-86 · Página de la campana (UC-18), keyset descendente por (createdAt, id): trae hasta
+   * `limit` notificaciones del destinatario, opcionalmente más viejas que `cursor`. El desempate
+   * por id vuelve estable el orden cuando dos notificaciones comparten `createdAt` (fan-out del
+   * mismo instante), sin saltear ni repetir filas entre páginas. El índice compound existente
+   * (recipientAccountId, read, createdAt) cubre el filtro por destinatario — pocas filas por cuenta.
+   */
+  listForAccount(
+    accountId: string,
+    opts: { limit: number; cursor?: NotificationCursor | null },
+  ): Promise<Notification[]> {
+    const qb = this.notifications
+      .createQueryBuilder('n')
+      .where('n."recipientAccountId" = :accountId', { accountId })
+      .orderBy('n."createdAt"', 'DESC')
+      .addOrderBy('n.id', 'DESC')
+      .take(opts.limit);
+    if (opts.cursor) {
+      // Keyset: (createdAt, id) < (cursor.createdAt, cursor.id), expandido para no depender de la
+      // inferencia de tipos del row-comparison de Postgres con parámetros.
+      qb.andWhere(
+        '(n."createdAt" < :cursorCreatedAt OR (n."createdAt" = :cursorCreatedAt AND n.id < :cursorId))',
+        { cursorCreatedAt: opts.cursor.createdAt, cursorId: opts.cursor.id },
+      );
+    }
+    return qb.getMany();
   }
 
   unreadCount(accountId: string): Promise<number> {
