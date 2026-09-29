@@ -51,6 +51,32 @@ describe('FileStorageUtility · host público por ambiente (KER-70)', () => {
   });
 });
 
+describe('FileStorageUtility · S3-compatible self-hosted (MinIO)', () => {
+  /** Lee la config resuelta del S3Client (endpoint + credenciales) sin hacer requests. */
+  async function resolvedClientConfig(env: Record<string, string | undefined>) {
+    const util = new FileStorageUtility(configWith(env));
+    const cfg = (util as unknown as { client: { config: Record<string, unknown> } }).client.config;
+    const endpoint = await (cfg.endpoint as () => Promise<{ hostname: string }>)();
+    const creds = await (cfg.credentials as () => Promise<{ accessKeyId: string }>)();
+    return { hostname: endpoint.hostname, accessKeyId: creds.accessKeyId };
+  }
+
+  it('Dado S3_ENDPOINT_URL con credenciales, entonces usa ese endpoint y esas credenciales', async () => {
+    const cfg = await resolvedClientConfig({
+      S3_ENDPOINT_URL: 'http://minio:9000',
+      S3_ACCESS_KEY_ID: 'keru-api',
+      S3_SECRET_ACCESS_KEY: 'secret',
+      AWS_ENDPOINT_URL: 'http://localhost:4566',
+    });
+    expect(cfg).toEqual({ hostname: 'minio', accessKeyId: 'keru-api' });
+  });
+
+  it('Dado solo AWS_ENDPOINT_URL (floci), entonces mantiene las credenciales "local"', async () => {
+    const cfg = await resolvedClientConfig({ AWS_ENDPOINT_URL: 'http://localhost:4566' });
+    expect(cfg).toEqual({ hostname: 'localhost', accessKeyId: 'local' });
+  });
+});
+
 /**
  * KER-75 · Observabilidad de fallos de S3 en getPrivateDocument (UC-19). Un fallo distinto de
  * "no encontrado" (AccessDenied, NoSuchBucket, endpoint/credenciales) caía como un 500 opaco sin

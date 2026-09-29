@@ -27,7 +27,9 @@ async function bootstrap() {
   // ALB (igual para TODOS los clientes), y el rate limiting por-IP del ThrottlerGuard se vuelve
   // global (5 logins/min para todo el sistema). Confiamos EXACTAMENTE 2 hops (ALB + CloudFront)
   // para obtener la IP real del cliente; 'true' confiaría en toda la cadena XFF y sería spoofeable.
-  app.getHttpAdapter().getInstance().set('trust proxy', 2);
+  // TRUST_PROXY_HOPS permite ajustarlo por deploy (VPS con Dokploy: 1 hop, solo Traefik).
+  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 2);
+  app.getHttpAdapter().getInstance().set('trust proxy', trustProxyHops);
 
   app.enableCors(); // dev: abierto; en prod restringir origins por env.
   // KER-33: sin esto, un SIGTERM (deploy) mata el proceso con jobs BullMQ a mitad de vuelo.
