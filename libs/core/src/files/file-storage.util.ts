@@ -65,7 +65,13 @@ export class FileStorageUtility {
   private readonly emulated: boolean;
 
   constructor(private readonly config: ConfigService) {
-    const endpoint = this.config.get<string>('AWS_ENDPOINT_URL');
+    // S3-compatible self-hosted (MinIO en el VPS con Dokploy): S3_ENDPOINT_URL + credenciales
+    // propias, independiente de AWS_ENDPOINT_URL (que también redirige SES al emulador). Sin
+    // S3_ENDPOINT_URL se mantiene el comportamiento floci/AWS real.
+    const s3Endpoint = this.config.get<string>('S3_ENDPOINT_URL');
+    const endpoint = s3Endpoint || this.config.get<string>('AWS_ENDPOINT_URL');
+    const accessKeyId = this.config.get<string>('S3_ACCESS_KEY_ID');
+    const secretAccessKey = this.config.get<string>('S3_SECRET_ACCESS_KEY');
     this.emulated = !!endpoint;
     this.bucket = this.config.get<string>('S3_BUCKET', 'keru-media');
     // KER-70: la URL pública de las fotos se resuelve POR AMBIENTE vía S3_PUBLIC_URL, con el MISMO
@@ -83,7 +89,10 @@ export class FileStorageUtility {
         ? {
             endpoint,
             forcePathStyle: true,
-            credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
+            credentials:
+              s3Endpoint && accessKeyId && secretAccessKey
+                ? { accessKeyId, secretAccessKey }
+                : { accessKeyId: 'local', secretAccessKey: 'local' },
           }
         : {}),
     });
