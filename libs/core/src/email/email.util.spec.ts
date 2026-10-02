@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { SendEmailCommand } from '@aws-sdk/client-ses';
+import { createTransport } from 'nodemailer';
 import { EmailUtility } from './email.util';
 import { renderBrandedEmail } from './email.templates';
 
@@ -10,6 +11,8 @@ import { renderBrandedEmail } from './email.templates';
  * salga MULTIPART (parte HTML + parte texto) con el mismo link/token en ambas partes; y
  * (3) que el envío siga siendo mejor esfuerzo (no cambia la firma pública de los métodos).
  */
+
+jest.mock('nodemailer', () => ({ createTransport: jest.fn() }));
 
 describe('renderBrandedEmail (plantilla de marca)', () => {
   const content = {
@@ -86,7 +89,12 @@ describe('EmailUtility · envío multipart (HTML + texto)', () => {
 
   it('Dado sendInvitationEmail, cuando envía, entonces manda HTML + texto con el mismo token', async () => {
     const { util, send } = makeUtil();
-    await util.sendInvitationEmail({ to: 'a@test.com', patientName: 'Rosa', token: 'inv-tok', expiresAt: new Date() });
+    await util.sendInvitationEmail({
+      to: 'a@test.com',
+      patientName: 'Rosa',
+      token: 'inv-tok',
+      expiresAt: new Date(),
+    });
 
     const { subject, html, text } = bodyOf(send);
     expect(subject).toContain('Rosa');
@@ -98,7 +106,11 @@ describe('EmailUtility · envío multipart (HTML + texto)', () => {
 
   it('Dado sendPasswordResetEmail, cuando envía, entonces manda HTML + texto con el mismo token', async () => {
     const { util, send } = makeUtil();
-    await util.sendPasswordResetEmail({ to: 'a@test.com', token: 'reset-tok', expiresAt: new Date() });
+    await util.sendPasswordResetEmail({
+      to: 'a@test.com',
+      token: 'reset-tok',
+      expiresAt: new Date(),
+    });
 
     const { html, text } = bodyOf(send);
     expect(html).toContain('password-reset/confirm?token=reset-tok');
@@ -108,7 +120,11 @@ describe('EmailUtility · envío multipart (HTML + texto)', () => {
 
   it('Dado sendEmailVerificationEmail, cuando envía, entonces manda HTML + texto con el mismo token', async () => {
     const { util, send } = makeUtil();
-    await util.sendEmailVerificationEmail({ to: 'a@test.com', token: 'ver-tok', expiresAt: new Date() });
+    await util.sendEmailVerificationEmail({
+      to: 'a@test.com',
+      token: 'ver-tok',
+      expiresAt: new Date(),
+    });
 
     const { html, text } = bodyOf(send);
     expect(html).toContain('verify-email?token=ver-tok');
@@ -139,5 +155,70 @@ describe('EmailUtility · envío multipart (HTML + texto)', () => {
     await expect(
       util.sendEmailVerificationEmail({ to: 'a@test.com', token: 't', expiresAt: new Date() }),
     ).rejects.toThrow('SES caído');
+  });
+});
+
+describe('EmailUtility · envío por SMTP (Resend u otro proveedor)', () => {
+  function makeSmtpUtil(env: Record<string, string>) {
+    const sendMail = jest.fn().mockResolvedValue({ messageId: 'm-1' });
+    (createTransport as jest.Mock).mockReturnValue({ sendMail });
+    const config = {
+      get: jest.fn((k: string, d?: unknown) => (k in env ? env[k] : d)),
+    } as unknown as ConfigService;
+    const util = new EmailUtility(config);
+    const sesSend = jest.fn();
+    (util as unknown as { client: { send: jest.Mock } }).client.send = sesSend;
+    return { util, sendMail, sesSend };
+  }
+
+  const smtpEnv = {
+    SMTP_HOST: 'smtp.resend.com',
+    SMTP_USER: 'resend',
+    SMTP_PASS: 're_x',
+    EMAIL_FROM: 'Keru <no-reply@notify.eugeniovaleiras.com>',
+  };
+
+  it('Dado SMTP_HOST, cuando envía, entonces usa SMTP (TLS en 465) con HTML + texto y no toca SES', async () => {
+    const { util, sendMail, sesSend } = makeSmtpUtil(smtpEnv);
+    await util.sendEmailVerificationEmail({
+      to: 'a@test.com',
+      token: 'ver-tok',
+      expiresAt: new Date(),
+    });
+
+    expect(createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'smtp.resend.com',
+        port: 465,
+        secure: true,
+        auth: { user: 'resend', pass: 're_x' },
+      }),
+    );
+    expect(sesSend).not.toHaveBeenCalled();
+    const mail = sendMail.mock.calls[0][0] as {
+      from: string;
+      to: string;
+      html: string;
+      text: string;
+    };
+    expect(mail.from).toBe('Keru <no-reply@notify.eugeniovaleiras.com>');
+    expect(mail.to).toBe('a@test.com');
+    expect(mail.html).toContain('verify-email?token=ver-tok');
+    expect(mail.text).toContain('verify-email?token=ver-tok');
+  });
+
+  it('Dado SMTP_PORT 587, cuando crea el transporte, entonces usa STARTTLS (secure false)', () => {
+    makeSmtpUtil({ ...smtpEnv, SMTP_PORT: '587' });
+    expect(createTransport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ port: 587, secure: false }),
+    );
+  });
+
+  it('Dado que el SMTP falla, cuando envía, entonces el error se propaga (mejor esfuerzo lo maneja el llamador)', async () => {
+    const { util, sendMail } = makeSmtpUtil(smtpEnv);
+    sendMail.mockRejectedValueOnce(new Error('SMTP caído'));
+    await expect(
+      util.sendEmailVerificationEmail({ to: 'a@test.com', token: 't', expiresAt: new Date() }),
+    ).rejects.toThrow('SMTP caído');
   });
 });

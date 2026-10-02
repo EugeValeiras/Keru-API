@@ -1,18 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SESClient, SendEmailCommand, VerifyEmailIdentityCommand } from '@aws-sdk/client-ses';
+import { createTransport, Transporter } from 'nodemailer';
 import { BrandedEmailContent, DEFAULT_LOGO_URL, renderBrandedEmail } from './email.templates';
 
 /**
  * EmailUtility (constitution §3.1, utility transversal como Audit/PubSub).
- * Envío de emails vía SES. En dev apunta al emulador floci (AWS_ENDPOINT_URL);
- * en prod usa la cadena de credenciales por defecto (roles IAM, sin claves estáticas).
+ * Envío de emails por SMTP (si SMTP_HOST está seteado, p. ej. Resend) o vía SES.
+ * SES: en dev apunta al emulador floci (AWS_ENDPOINT_URL); en AWS usa la cadena de
+ * credenciales por defecto. SMTP desacopla del proveedor: cambiarlo es cambiar credenciales.
  * Todo envío es MEJOR ESFUERZO: el que llama no debe bloquear su flujo por un fallo acá.
  */
 @Injectable()
 export class EmailUtility {
   private readonly logger = new Logger(EmailUtility.name);
   private readonly client: SESClient;
+  private readonly smtp: Transporter | null;
   private readonly from: string;
   private readonly appBaseUrl: string;
   private readonly logoUrl: string;
@@ -20,7 +23,10 @@ export class EmailUtility {
 
   constructor(private readonly config: ConfigService) {
     const endpoint = this.config.get<string>('AWS_ENDPOINT_URL');
-    this.from = this.config.get<string>('SES_FROM', 'no-reply@keru.ar');
+    // EMAIL_FROM (cualquier proveedor) con fallback a SES_FROM, el nombre histórico.
+    this.from =
+      this.config.get<string>('EMAIL_FROM') ||
+      this.config.get<string>('SES_FROM', 'no-reply@keru.ar');
     this.appBaseUrl = this.config.get<string>('APP_BASE_URL', 'http://localhost:4200');
     // KER-64: el logo se sirve desde una URL pública HTTPS estable (Gmail/Outlook bloquean data:).
     this.logoUrl = this.config.get<string>('EMAIL_LOGO_URL', DEFAULT_LOGO_URL);
@@ -33,6 +39,19 @@ export class EmailUtility {
           }
         : {}),
     });
+    const smtpHost = this.config.get<string>('SMTP_HOST');
+    const smtpPort = Number(this.config.get<string>('SMTP_PORT', '465'));
+    this.smtp = smtpHost
+      ? createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465, // 465 = TLS implícito; 587 = STARTTLS
+          auth: {
+            user: this.config.get<string>('SMTP_USER'),
+            pass: this.config.get<string>('SMTP_PASS'),
+          },
+        })
+      : null;
   }
 
   /** UC-03: link de invitación por email al invitado nombrado (mejor esfuerzo). */
@@ -60,7 +79,11 @@ export class EmailUtility {
   }
 
   /** UC-04 A4: link de recuperación de contraseña (token de un solo uso, mejor esfuerzo). */
-  async sendPasswordResetEmail(input: { to: string; token: string; expiresAt: Date }): Promise<void> {
+  async sendPasswordResetEmail(input: {
+    to: string;
+    token: string;
+    expiresAt: Date;
+  }): Promise<void> {
     const resetUrl = `${this.appBaseUrl}/password-reset/confirm?token=${input.token}`;
     await this.send(input.to, 'Recuperá tu contraseña de Keru', {
       previewText: 'Creá una nueva contraseña para tu cuenta de Keru.',
@@ -71,12 +94,17 @@ export class EmailUtility {
         'El link vence a los 30 minutos y sirve una sola vez.',
         'Si no pediste esto, podés ignorar este mensaje: tu contraseña no cambia hasta que uses el link.',
       ],
-      reason: 'Recibiste este correo porque se pidió recuperar la contraseña de esta cuenta de Keru.',
+      reason:
+        'Recibiste este correo porque se pidió recuperar la contraseña de esta cuenta de Keru.',
     });
   }
 
   /** UC-04 A5: link de verificación de email del self-signup (token de un solo uso, mejor esfuerzo). */
-  async sendEmailVerificationEmail(input: { to: string; token: string; expiresAt: Date }): Promise<void> {
+  async sendEmailVerificationEmail(input: {
+    to: string;
+    token: string;
+    expiresAt: Date;
+  }): Promise<void> {
     const verifyUrl = `${this.appBaseUrl}/verify-email?token=${input.token}`;
     await this.send(input.to, 'Verificá tu email en Keru', {
       previewText: 'Verificá tu email para activar del todo tu cuenta de Keru.',
@@ -95,8 +123,14 @@ export class EmailUtility {
   }
 
   private async send(to: string, subject: string, content: BrandedEmailContent): Promise<void> {
-    await this.ensureIdentity();
     const { html, text } = renderBrandedEmail(content, this.logoUrl);
+    if (this.smtp) {
+      // Multipart alternativo (text/plain + text/html), igual que por SES.
+      await this.smtp.sendMail({ from: this.from, to, subject, html, text });
+      this.logger.log(`Email enviado a ${to}: ${subject}`);
+      return;
+    }
+    await this.ensureIdentity();
     await this.client.send(
       new SendEmailCommand({
         Source: this.from,
