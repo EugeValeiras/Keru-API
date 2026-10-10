@@ -126,6 +126,19 @@ export class FileStorageUtility {
   }
 
   /**
+   * #49 (UC-19 A3) / UC-23 A4 · ¿`url` es una imagen subida por `putImage` (POST /files/images)?
+   * Fija lo que ese verbo produce en ESTE ambiente: la base pública (`S3_PUBLIC_URL`, o su default)
+   * + `/images/` + un único segmento de archivo con extensión de imagen soportada. Rechaza URLs
+   * arbitrarias (otro host o path, `data:`, `javascript:`, path traversal, otra extensión), para
+   * que un `photoUrl` nunca apunte fuera del almacenamiento oficial de Keru.
+   */
+  isUploadedImageUrl(url: string): boolean {
+    const prefix = `${this.publicBaseUrl}/images/`;
+    if (!url.startsWith(prefix)) return false;
+    return /^[A-Za-z0-9._-]+\.(?:jpe?g|png|webp)$/i.test(url.slice(prefix.length));
+  }
+
+  /**
    * KER-52 · Sube un documento PRIVADO de certificación (PDF o imagen) al prefijo no público y
    * devuelve su `key` opaca — NUNCA una URL pública. Lanza 400 si el tipo no está permitido.
    * La descarga solo se hace por `getPrivateDocument` desde el endpoint autorizado del admin (UC-19).

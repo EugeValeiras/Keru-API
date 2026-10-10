@@ -38,6 +38,16 @@ export interface UpdateApprovedProfileInput {
 }
 
 /**
+ * #49 (UC-19 A3) · Campos del perfil que corrige el ADMINISTRADOR: los del aprobado (UC-02 A3) más las
+ * especialidades (quien edita es el verificador, no hay re-verificación que disparar). Las
+ * certificaciones van por `setCertifications`; la identidad (nombre/foto) por `AccountAccess`
+ * (ADR-0003). NUNCA incluye status, badges ni provenance de revisión: tienen sus propios verbos.
+ */
+export interface AdminProfilePatch extends UpdateApprovedProfileInput {
+  specialties?: string[];
+}
+
+/**
  * CaregiverAccess (constitution §3.1). Verbos atómicos sobre el perfil de cuidador: personas +
  * cuentas, perfiles, tarifas efectivo-fechadas, insignias + provenance, ciclo de aprobación,
  * visibilidad. Verbos mutantes idempotentes (NFR-34). Dueño: Membership.
@@ -220,6 +230,21 @@ export class CaregiverAccess {
   async updateApprovedProfile(
     caregiverId: string,
     patch: UpdateApprovedProfileInput,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager ? manager.getRepository(Caregiver) : this.caregivers;
+    await repo.update(caregiverId, patch);
+  }
+
+  /**
+   * #49 (UC-19 A3) · Set parcial del perfil por el administrador, en CUALQUIER estado del cuidador
+   * (la autorización —rol admin + step-up— la gatea el controller; el Manager arma el patch). Set de
+   * valores: naturalmente idempotente, no requiere operationId (NFR-34, aclaración). No toca status,
+   * badges, provenance ni certificaciones.
+   */
+  async updateProfileByAdmin(
+    caregiverId: string,
+    patch: AdminProfilePatch,
     manager?: EntityManager,
   ): Promise<void> {
     const repo = manager ? manager.getRepository(Caregiver) : this.caregivers;
