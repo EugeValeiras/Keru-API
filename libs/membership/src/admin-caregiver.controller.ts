@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -18,11 +20,13 @@ import { MembershipManager } from './manager/membership.manager';
 import { CaregiverResponseDto } from './manager/dto/caregiver-response.dto';
 import { CaregiverDetailDto } from './manager/dto/caregiver-detail.dto';
 import {
+  AdminUpdateCaregiverDto,
+  AdminUpdateCertificationDto,
   DeactivateCaregiverDto,
   RejectCaregiverDto,
   SetBadgesDto,
 } from './manager/dto/admin-caregiver.dto';
-import { RejectCertificationDto } from './manager/dto/certification-io.dto';
+import { CertificationCatalogItemDto, RejectCertificationDto } from './manager/dto/certification-io.dto';
 import { CaregiverStatus } from './resource-access/entities/caregiver.entity';
 
 /** UC-19 · Back-office: aprobación y verificación de cuidadores. Requiere rol `admin`. */
@@ -59,11 +63,39 @@ export class AdminCaregiverController {
     return { ...result, items: result.items.map(CaregiverResponseDto.from) };
   }
 
+  @Get('certification-catalog')
+  @ApiOperation({
+    summary: '#49 (UC-19 A3) · Catálogo finito de tipos de certificación (para elegir el tipo al editar)',
+    description: 'Mismo catálogo que GET /caregivers/certification-catalog (UC-02), expuesto al rol admin.',
+  })
+  @ApiOkResponse({ type: CertificationCatalogItemDto, isArray: true })
+  async certificationCatalog(): Promise<CertificationCatalogItemDto[]> {
+    const items = await this.membership.listCertificationCatalog();
+    return items.map((i) => ({ key: i.key, label: i.label, iconKey: i.iconKey, badgeIcon: i.badgeIcon }));
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'UC-19 · Detalle del cuidador (con documentación para verificar)' })
   @ApiOkResponse({ type: CaregiverDetailDto })
   async detail(@Param('id') id: string): Promise<CaregiverDetailDto> {
     return CaregiverDetailDto.from(await this.membership.getCaregiverById(id));
+  }
+
+  @Patch(':id')
+  @UseGuards(StepUpGuard) // NFR-33: mutación sobre datos de un tercero — rol admin NO alcanza
+  @ApiHeader({ name: STEP_UP_HEADER, required: true, description: 'Token corto de re-confirmación (POST /auth/step-up)' })
+  @ApiOperation({
+    summary: '#49 (UC-19 A3) · Editar los datos del cuidador (identidad + perfil, set parcial). Exige step-up',
+    description:
+      'Corrige cualquier dato que el cuidador declaró: nombre/foto (viven en su cuenta, ADR-0003), especialidades, disponibilidad, tarifas, zona y modalidades. Funciona en cualquier estado y no toca status, insignias ni provenance. Solo las claves presentes se escriben; un body vacío no escribe ni audita. La tarifa es efectivo-fechada (NFR-03/23). Auditado.',
+  })
+  @ApiOkResponse({ type: CaregiverDetailDto })
+  async update(
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateCaregiverDto,
+    @CurrentAccount() admin: AuthPrincipal,
+  ): Promise<CaregiverDetailDto> {
+    return CaregiverDetailDto.from(await this.membership.adminUpdateCaregiver(id, admin.accountId, dto));
   }
 
   @Post(':id/approve')
@@ -147,6 +179,45 @@ export class AdminCaregiverController {
   ): Promise<CaregiverDetailDto> {
     return CaregiverDetailDto.from(
       await this.membership.rejectCertification(id, certId, admin.accountId, dto.reason),
+    );
+  }
+
+  @Patch(':id/certifications/:certId')
+  @UseGuards(StepUpGuard) // NFR-33
+  @ApiHeader({ name: STEP_UP_HEADER, required: true, description: 'Token corto de re-confirmación (POST /auth/step-up)' })
+  @ApiOperation({
+    summary: '#49 (UC-19 A3) · Corregir una certificación existente (tipo/institución/año). Exige step-up',
+    description:
+      'Set parcial. No cambia el estado de la certificación ni su documento privado (agregar una nueva o reemplazar el documento sigue siendo UC-02 A4, lo hace el cuidador). Auditado.',
+  })
+  @ApiOkResponse({ type: CaregiverDetailDto })
+  async updateCertification(
+    @Param('id') id: string,
+    @Param('certId') certId: string,
+    @Body() dto: AdminUpdateCertificationDto,
+    @CurrentAccount() admin: AuthPrincipal,
+  ): Promise<CaregiverDetailDto> {
+    return CaregiverDetailDto.from(
+      await this.membership.adminUpdateCertification(id, certId, admin.accountId, dto),
+    );
+  }
+
+  @Delete(':id/certifications/:certId')
+  @UseGuards(StepUpGuard) // NFR-33
+  @ApiHeader({ name: STEP_UP_HEADER, required: true, description: 'Token corto de re-confirmación (POST /auth/step-up)' })
+  @ApiOperation({
+    summary: '#49 (UC-19 A3) · Dar de baja una certificación existente. Exige step-up',
+    description:
+      'Quita la certificación del perfil (cualquier estado) y recalcula la insignia derivada `certificaciones` (≥1 aprobada). Identidad/antecedentes no se tocan. Auditado.',
+  })
+  @ApiOkResponse({ type: CaregiverDetailDto })
+  async removeCertification(
+    @Param('id') id: string,
+    @Param('certId') certId: string,
+    @CurrentAccount() admin: AuthPrincipal,
+  ): Promise<CaregiverDetailDto> {
+    return CaregiverDetailDto.from(
+      await this.membership.adminRemoveCertification(id, certId, admin.accountId),
     );
   }
 

@@ -17,7 +17,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WithOperationIdentity } from '@keru/core';
 import { CERTIFICATION_CATALOG_KEYS } from '../../certification-catalog';
 
-const CARE_TYPES = [
+export const CARE_TYPES = [
   'elder-care',
   'post-surgical',
   'chronic-illness',

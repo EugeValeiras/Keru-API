@@ -28,7 +28,11 @@ import {
   DomainEventType,
 } from '@keru/core';
 import { AccountAccess, UpdateAccountInput } from '../resource-access/account.access';
-import { CaregiverAccess, UpdateApprovedProfileInput } from '../resource-access/caregiver.access';
+import {
+  AdminProfilePatch,
+  CaregiverAccess,
+  UpdateApprovedProfileInput,
+} from '../resource-access/caregiver.access';
 import { CertificationCatalogAccess } from '../resource-access/certification-catalog.access';
 import { Account } from '../resource-access/entities/account.entity';
 import { Patient } from '../resource-access/entities/patient.entity';
@@ -36,6 +40,7 @@ import { Caregiver, Certification } from '../resource-access/entities/caregiver.
 import { CertificationCatalog } from '../resource-access/entities/certification-catalog.entity';
 import { CERTIFICATION_CATALOG, isCertificationCatalogKey } from '../certification-catalog';
 import { AddCertificationDto } from './dto/certification-io.dto';
+import { AdminUpdateCaregiverDto, AdminUpdateCertificationDto } from './dto/admin-caregiver.dto';
 import { FamilyInvitation } from '../resource-access/entities/family-invitation.entity';
 import { RegisterPatientDto } from './dto/register-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -1125,6 +1130,158 @@ export class MembershipManager implements OnApplicationBootstrap {
     const caregiver = await this.caregiverAccess.findById(id);
     if (!caregiver) throw new NotFoundException('Cuidador no encontrado');
     return caregiver;
+  }
+
+  // --- #49 (UC-19 A3) · Edición de datos del cuidador por el administrador ---
+
+  /**
+   * #49 (UC-19 A3) · El admin corrige cualquier dato que el cuidador declaró: la identidad (nombre y
+   * foto, que viven en la `Account` — ADR-0003) y el perfil profesional (especialidades,
+   * disponibilidad, tarifas, zona, modalidades). Funciona en CUALQUIER estado y NO toca status,
+   * insignias ni provenance de revisión: quien edita es el verificador, no hay re-verificación que
+   * disparar (constitution §7 acotado). Set parcial: solo las claves presentes se escriben; un patch
+   * vacío no escribe ni audita. La tarifa es efectivo-fechada (NFR-03/23): agrega una versión con el
+   * `operationId` del cliente y actualiza la vigente en la misma transacción; las solicitudes
+   * existentes conservan su snapshot pinneado. La identidad se escribe sobre la cuenta del cuidador
+   * —segundo punto de escritura sobre la MISMA fuente, mismo dueño Membership (constitution §3.3)—
+   * resolviéndola por `caregiver.accountId` (intra-dominio); marketplace/ficha/header la ven al
+   * instante porque la derivan. `photoUrl` se valida contra el patrón de `POST /files/images`
+   * (UC-23 A4). El step-up lo exige el controller (NFR-33); acá queda la auditoría (actor admin,
+   * cuidador objetivo, lista de campos).
+   */
+  async adminUpdateCaregiver(
+    caregiverId: string,
+    adminId: string,
+    dto: AdminUpdateCaregiverDto,
+  ): Promise<Caregiver> {
+    const caregiver = await this.requireCaregiver(caregiverId);
+
+    // Identidad → Account (ADR-0003). Solo las claves presentes; `photoUrl: null` quita la foto.
+    const identity: UpdateAccountInput = Object.fromEntries(
+      Object.entries({ displayName: dto.displayName, photoUrl: dto.photoUrl }).filter(
+        ([, value]) => value !== undefined,
+      ),
+    );
+    if (typeof identity.photoUrl === 'string' && !this.files.isUploadedImageUrl(identity.photoUrl)) {
+      throw new BadRequestException(
+        'La foto debe ser una imagen subida por la vía oficial (POST /files/images)',
+      );
+    }
+
+    // Perfil → Caregiver. Nunca status/badges/provenance (tienen sus verbos) ni certificaciones (por-cert).
+    const profile: AdminProfilePatch = Object.fromEntries(
+      Object.entries({
+        specialties: dto.specialties,
+        availability: dto.availability,
+        zone: dto.zone,
+        modalities: dto.modalities,
+      }).filter(([, value]) => value !== undefined),
+    );
+    const newRates = dto.rates
+      ? {
+          ratePerHour: dto.rates.ratePerHour,
+          currency: dto.rates.currency ?? caregiver.rates?.currency ?? 'ARS',
+          description: dto.rates.description,
+        }
+      : undefined;
+
+    const fields = [...Object.keys(identity), ...Object.keys(profile), ...(newRates ? ['rates'] : [])];
+    if (fields.length === 0) return caregiver;
+
+    await this.tx.run(async (em) => {
+      if (Object.keys(identity).length > 0) {
+        await this.accountAccess.updateAccount(caregiver.accountId, identity, em);
+      }
+      if (newRates) {
+        // NFR-03/23: la historia no se reescribe — versión nueva vigente-desde-ahora + tarifa vigente.
+        await this.caregiverAccess.createRateVersion(caregiver.id, newRates, new Date(), dto.operationId, em);
+        profile.rates = newRates;
+      }
+      if (Object.keys(profile).length > 0) {
+        await this.caregiverAccess.updateProfileByAdmin(caregiver.id, profile, em);
+      }
+      await this.audit.record({
+        action: 'membership.caregiver.admin-edited',
+        actor: adminId,
+        target: { type: 'caregiver', id: caregiver.id },
+        metadata: { fields },
+        manager: em,
+      });
+    });
+
+    return this.requireCaregiver(caregiverId);
+  }
+
+  /**
+   * #49 (UC-19 A3) · Corrige tipo/institución/año de una certificación EXISTENTE (en cualquier
+   * estado de la cert y del cuidador). No cambia el estado de la cert, su documento privado ni las
+   * insignias. Set parcial: un patch vacío no escribe ni audita.
+   */
+  async adminUpdateCertification(
+    caregiverId: string,
+    certId: string,
+    adminId: string,
+    dto: AdminUpdateCertificationDto,
+  ): Promise<Caregiver> {
+    const caregiver = await this.requireCaregiver(caregiverId);
+    const certs = [...(caregiver.certifications ?? [])];
+    const idx = certs.findIndex((c) => c.id === certId);
+    if (idx < 0) throw new NotFoundException('Certificación no encontrada');
+
+    const patch: Partial<Pick<Certification, 'catalogKey' | 'institution' | 'year'>> = Object.fromEntries(
+      Object.entries({ catalogKey: dto.catalogKey, institution: dto.institution, year: dto.year }).filter(
+        ([, value]) => value !== undefined,
+      ),
+    );
+    const fields = Object.keys(patch);
+    if (fields.length === 0) return caregiver;
+    if (patch.catalogKey !== undefined && !isCertificationCatalogKey(patch.catalogKey)) {
+      throw new BadRequestException(`Tipo de certificación fuera del catálogo: ${patch.catalogKey}`);
+    }
+
+    certs[idx] = { ...certs[idx], ...patch };
+    await this.tx.run(async (em) => {
+      await this.caregiverAccess.setCertifications(caregiverId, certs, em);
+      await this.audit.record({
+        action: 'membership.caregiver.certification-admin-edited',
+        actor: adminId,
+        target: { type: 'caregiver', id: caregiverId },
+        metadata: { certId, fields },
+        manager: em,
+      });
+    });
+    return this.requireCaregiver(caregiverId);
+  }
+
+  /**
+   * #49 (UC-19 A3) · Da de baja una certificación EXISTENTE (en cualquier estado). Recalcula la
+   * insignia derivada `certificaciones` (≥1 aprobada, UC-19) en la misma transacción; identidad y
+   * antecedentes no se tocan. Agregar una nueva en su lugar sigue siendo UC-02 A4 (el cuidador).
+   */
+  async adminRemoveCertification(caregiverId: string, certId: string, adminId: string): Promise<Caregiver> {
+    const caregiver = await this.requireCaregiver(caregiverId);
+    const all = caregiver.certifications ?? [];
+    const removed = all.find((c) => c.id === certId);
+    if (!removed) throw new NotFoundException('Certificación no encontrada');
+
+    const certs = all.filter((c) => c.id !== certId);
+    const badges = {
+      certifications: this.deriveCertificationsBadge(certs),
+      identity: caregiver.badges?.identity ?? false,
+      background: caregiver.badges?.background ?? false,
+    };
+    await this.tx.run(async (em) => {
+      await this.caregiverAccess.setCertifications(caregiverId, certs, em);
+      await this.caregiverAccess.setBadges(caregiverId, badges, em);
+      await this.audit.record({
+        action: 'membership.caregiver.certification-admin-removed',
+        actor: adminId,
+        target: { type: 'caregiver', id: caregiverId },
+        metadata: { certId, catalogKey: removed.catalogKey, status: removed.status },
+        manager: em,
+      });
+    });
+    return this.requireCaregiver(caregiverId);
   }
 
   // --- UC-03 · Invitación de vínculo familiar ---

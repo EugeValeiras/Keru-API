@@ -900,6 +900,37 @@
         ]
       }
     },
+    "/api/v1/admin/caregivers/certification-catalog": {
+      "get": {
+        "description": "Mismo catálogo que GET /caregivers/certification-catalog (UC-02), expuesto al rol admin.",
+        "operationId": "AdminCaregiverController_certificationCatalog_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CertificationCatalogItemDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "#49 (UC-19 A3) · Catálogo finito de tipos de certificación (para elegir el tipo al editar)",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
     "/api/v1/admin/caregivers/{id}": {
       "get": {
         "operationId": "AdminCaregiverController_detail_v1",
@@ -931,6 +962,60 @@
           }
         ],
         "summary": "UC-19 · Detalle del cuidador (con documentación para verificar)",
+        "tags": [
+          "Back-office"
+        ]
+      },
+      "patch": {
+        "description": "Corrige cualquier dato que el cuidador declaró: nombre/foto (viven en su cuenta, ADR-0003), especialidades, disponibilidad, tarifas, zona y modalidades. Funciona en cualquier estado y no toca status, insignias ni provenance. Solo las claves presentes se escriben; un body vacío no escribe ni audita. La tarifa es efectivo-fechada (NFR-03/23). Auditado.",
+        "operationId": "AdminCaregiverController_update_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-step-up-token",
+            "in": "header",
+            "description": "Token corto de re-confirmación (POST /auth/step-up)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUpdateCaregiverDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "#49 (UC-19 A3) · Editar los datos del cuidador (identidad + perfil, set parcial). Exige step-up",
         "tags": [
           "Back-office"
         ]
@@ -1185,6 +1270,122 @@
           }
         ],
         "summary": "KER-52 (UC-19 A2) · Rechazar una certificación (con motivo). Exige step-up",
+        "tags": [
+          "Back-office"
+        ]
+      }
+    },
+    "/api/v1/admin/caregivers/{id}/certifications/{certId}": {
+      "patch": {
+        "description": "Set parcial. No cambia el estado de la certificación ni su documento privado (agregar una nueva o reemplazar el documento sigue siendo UC-02 A4, lo hace el cuidador). Auditado.",
+        "operationId": "AdminCaregiverController_updateCertification_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "certId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-step-up-token",
+            "in": "header",
+            "description": "Token corto de re-confirmación (POST /auth/step-up)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUpdateCertificationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "#49 (UC-19 A3) · Corregir una certificación existente (tipo/institución/año). Exige step-up",
+        "tags": [
+          "Back-office"
+        ]
+      },
+      "delete": {
+        "description": "Quita la certificación del perfil (cualquier estado) y recalcula la insignia derivada `certificaciones` (≥1 aprobada). Identidad/antecedentes no se tocan. Auditado.",
+        "operationId": "AdminCaregiverController_removeCertification_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "certId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-step-up-token",
+            "in": "header",
+            "description": "Token corto de re-confirmación (POST /auth/step-up)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "#49 (UC-19 A3) · Dar de baja una certificación existente. Exige step-up",
         "tags": [
           "Back-office"
         ]
@@ -2707,6 +2908,7 @@
     },
     "/api/v1/notifications": {
       "get": {
+        "description": "KER-86 · Página de la campana ordenada DESC por createdAt con cursor keyset. Omitir `cursor` para la primera página; reenviar `nextCursor` para la siguiente (el panel appendea). Default limit 20, máx 100. El contador de no leídas es endpoint aparte.",
         "operationId": "NotificationController_list_v1",
         "parameters": [
           {
@@ -4518,6 +4720,79 @@
           "createdAt"
         ]
       },
+      "AdminUpdateCaregiverDto": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Identidad de operación provista por el cliente (NFR-34). Un reintento con el mismo valor no duplica el efecto.",
+            "example": "op-8f3a2c1e"
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityDto"
+            }
+          },
+          "rates": {
+            "$ref": "#/components/schemas/RatesDto"
+          },
+          "zone": {
+            "type": "string",
+            "example": "Palermo, CABA"
+          },
+          "modalities": {
+            "type": "array",
+            "example": [
+              "home",
+              "hospital"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "home",
+                "hospital"
+              ]
+            }
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Laura Gómez",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500,
+            "description": "URL devuelta por POST /files/images (se valida contra su patrón); null quita la foto.",
+            "example": "/media/images/3f2c1a9e-7d4b-4a1c-9d2e-5b6f7a8c9d0e.jpg"
+          },
+          "specialties": {
+            "type": "array",
+            "example": [
+              "elder-care",
+              "palliative"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "elder-care",
+                "post-surgical",
+                "chronic-illness",
+                "disability",
+                "palliative",
+                "pediatric",
+                "rehabilitation",
+                "companionship"
+              ]
+            }
+          }
+        },
+        "required": [
+          "operationId"
+        ]
+      },
       "RejectCaregiverDto": {
         "type": "object",
         "properties": {
@@ -4541,6 +4816,40 @@
         "required": [
           "reason"
         ]
+      },
+      "AdminUpdateCertificationDto": {
+        "type": "object",
+        "properties": {
+          "catalogKey": {
+            "type": "string",
+            "enum": [
+              "nursing-degree",
+              "nursing-assistant",
+              "cpr",
+              "first-aid",
+              "geriatric-care",
+              "palliative-care",
+              "dementia-care",
+              "physical-therapy",
+              "therapeutic-companion",
+              "pediatric-nursing",
+              "diabetes-nutrition"
+            ],
+            "example": "cpr"
+          },
+          "institution": {
+            "type": "string",
+            "example": "Cruz Roja Argentina",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "year": {
+            "type": "number",
+            "example": 2021,
+            "minimum": 1950,
+            "maximum": 2100
+          }
+        }
       },
       "SetBadgesDto": {
         "type": "object",

@@ -51,6 +51,38 @@ describe('FileStorageUtility · host público por ambiente (KER-70)', () => {
   });
 });
 
+describe('FileStorageUtility · patrón de imagen subida (#49 / UC-23 A4)', () => {
+  it('Dado S3_PUBLIC_URL relativo (/media), cuando la URL es la que devuelve putImage, entonces es válida', async () => {
+    const util = utilWith({ S3_PUBLIC_URL: '/media' });
+    const { url } = await util.putImage(Buffer.from('x'), 'image/jpeg');
+    expect(util.isUploadedImageUrl(url)).toBe(true);
+    expect(util.isUploadedImageUrl('/media/images/laura-detalle.jpg')).toBe(true);
+  });
+
+  it('Dado S3_PUBLIC_URL de CDN, entonces acepta solo ese host + /images/<archivo>.<ext de imagen>', () => {
+    const util = utilWith({ S3_PUBLIC_URL: 'https://cdn.dev.keru.ar/media' });
+    expect(util.isUploadedImageUrl('https://cdn.dev.keru.ar/media/images/a1b2.webp')).toBe(true);
+    expect(util.isUploadedImageUrl('https://cdn.dev.keru.ar/media/images/a1b2.PNG')).toBe(true);
+    // Otro host, aunque imite el path.
+    expect(util.isUploadedImageUrl('https://evil.example/media/images/a1b2.png')).toBe(false);
+    // Otro prefijo del mismo host (los documentos privados nunca son foto pública).
+    expect(util.isUploadedImageUrl('https://cdn.dev.keru.ar/media/private/documents/x.pdf')).toBe(false);
+    // Path traversal / subcarpetas / otra extensión / esquemas raros / vacío.
+    expect(util.isUploadedImageUrl('https://cdn.dev.keru.ar/media/images/../../x.png')).toBe(false);
+    expect(util.isUploadedImageUrl('https://cdn.dev.keru.ar/media/images/sub/x.png')).toBe(false);
+    expect(util.isUploadedImageUrl('https://cdn.dev.keru.ar/media/images/x.svg')).toBe(false);
+    expect(util.isUploadedImageUrl('javascript:alert(1)')).toBe(false);
+    expect(util.isUploadedImageUrl('data:image/png;base64,AAAA')).toBe(false);
+    expect(util.isUploadedImageUrl('')).toBe(false);
+  });
+
+  it('Dado solo AWS_ENDPOINT_URL (floci), entonces la base es endpoint/bucket (como el e2e del CI)', () => {
+    const util = utilWith({ AWS_ENDPOINT_URL: 'http://localhost:4566' });
+    expect(util.isUploadedImageUrl('http://localhost:4566/keru-media/images/perfil.jpg')).toBe(true);
+    expect(util.isUploadedImageUrl('/media/images/perfil.jpg')).toBe(false);
+  });
+});
+
 describe('FileStorageUtility · S3-compatible self-hosted (MinIO)', () => {
   /** Lee la config resuelta del S3Client (endpoint + credenciales) sin hacer requests. */
   async function resolvedClientConfig(env: Record<string, string | undefined>) {
